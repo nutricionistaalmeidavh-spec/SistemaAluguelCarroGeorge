@@ -8,7 +8,7 @@ const JSON_HEADERS=Object.freeze({'content-type':'application/json; charset=utf-
 const MAX_JSON_BYTES=1_000_000,MAX_OPERATIONS=50,MAX_CHANGE_LIMIT=200;
 const OPERATIONS_PATH=new RegExp(`^${API_PREFIX}/sync/operations/?$`),CHANGES_PATH=new RegExp(`^${API_PREFIX}/sync/changes/?$`);
 const ENTITY_RESOURCE=Object.freeze({customer:'customers',vehicle:'vehicles'});
-const CHANGE_READ_PERMISSION=Object.freeze({customer:'customer.read',vehicle:'vehicle.read',rental:'rental.read',rentalPayment:'finance.read',billingInstallment:'billing.read',attachment:'documents.read',inspection:'inspection.read',maintenance:'maintenance.read'});
+const CHANGE_READ_PERMISSION=Object.freeze({customer:'customer.read',vehicle:'vehicle.read',rental:'rental.read',rentalPayment:'finance.read',billingPayment:'billing.read',attachment:'documents.read',inspection:'inspection.read',maintenance:'maintenance.read'});
 
 function json(body,status=200,headers={}){return new Response(JSON.stringify(body),{status,headers:{...JSON_HEADERS,...headers}});}
 function session(value){return value?.installationId&&value?.userId?value:null;}
@@ -39,7 +39,7 @@ async function applyOperation(db,actor,rawOperation){
   if(!def||!def.writePermission||!canCloud(actor,def.writePermission))fail('forbidden',403);
   if(!db?.batch)fail('database_unavailable',503);
   const repo=createD1Repository(db,actor.installationId),payload=rawOperation?.payload&&typeof rawOperation.payload==='object'?rawOperation.payload:{},now=stamp(),deviceId=actor.deviceId??null;
-  let id=payload.id?validId(payload.id):generatedId(resource),baseVersion=scalarVersion(rawOperation?.baseVersion),item=null,entityStatement=null,changePayload=null,entityVersion=null;
+  let id=payload.id?validId(payload.id):generatedId(resource),baseVersion=scalarVersion(rawOperation?.baseVersion),item=null,entityStatement=null,changePayload=null,entityVersion=null,guardSql=null,guardParams=[];
 
   if(action==='create'){
     const entries=writableEntries(def,payload);
@@ -49,6 +49,7 @@ async function applyOperation(db,actor,rawOperation){
     const values=[id,actor.installationId,...entries.map(([, ,value])=>sqlValue(value)),now,now,1,deviceId];
     entityStatement=db.prepare(`INSERT INTO ${def.table} (${columns.join(', ')}) VALUES (${columns.map(()=>'?').join(', ')})`).bind(...values);
     changePayload=publicCreateItem(resource,id,payload,now,deviceId);entityVersion=1;baseVersion=null;
+    guardSql=`EXISTS (SELECT 1 FROM ${def.table} WHERE installation_id = ? AND id = ? AND version = 1 AND updated_at = ? AND deleted_at IS NULL)`;guardParams=[actor.installationId,id,now];
   }else{
     id=validId(payload.id);const current=await repo.get(resource,id);if(!current)fail('not_found',404);
     if(baseVersion==null)fail('base_version_required');if(Number(current.version)!==baseVersion)conflict(current,operationId);
@@ -60,16 +61,18 @@ async function applyOperation(db,actor,rawOperation){
       const params=[...entries.map(([, ,value])=>sqlValue(value)),now,deviceId,actor.installationId,id,baseVersion];
       entityStatement=db.prepare(`UPDATE ${def.table} SET ${assignments.join(', ')} WHERE installation_id = ? AND id = ? AND version = ? AND deleted_at IS NULL`).bind(...params);
       changePayload={...current,...data,version:entityVersion,updatedAt:now,updatedByDevice:deviceId};
+      guardSql=`EXISTS (SELECT 1 FROM ${def.table} WHERE installation_id = ? AND id = ? AND version = ? AND updated_at = ? AND deleted_at IS NULL)`;guardParams=[actor.installationId,id,entityVersion,now];
     }else{
       entityStatement=db.prepare(`UPDATE ${def.table} SET deleted_at = ?, updated_at = ?, version = version + 1, updated_by_device = ? WHERE installation_id = ? AND id = ? AND version = ? AND deleted_at IS NULL`).bind(now,now,deviceId,actor.installationId,id,baseVersion);
       changePayload={id,version:entityVersion,deleted:true,updatedAt:now,updatedByDevice:deviceId};
+      guardSql=`EXISTS (SELECT 1 FROM ${def.table} WHERE installation_id = ? AND id = ? AND version = ? AND deleted_at = ?)`;guardParams=[actor.installationId,id,entityVersion,now];
     }
   }
 
-  const changeStatement=appendChangeStatement(db,{operationId,installationId:actor.installationId,deviceId,entityType:singularFor(resource),entityId:id,operation:action,baseVersion,entityVersion,payload:changePayload,createdAt:now});
+  const changeStatement=appendChangeStatement(db,{operationId,installationId:actor.installationId,deviceId,entityType:singularFor(resource),entityId:id,operation:action,baseVersion,entityVersion,payload:changePayload,createdAt:now,guardSql,guardParams});
   try{
     const result=await db.batch([entityStatement,changeStatement]);
-    if(Number(result?.[0]?.meta?.changes??0)!==1){const current=await repo.get(resource,id);conflict(current,operationId);}
+    if(Number(result?.[0]?.meta?.changes??0)!==1||Number(result?.[1]?.meta?.changes??0)!==1){const current=await repo.get(resource,id);conflict(current,operationId);}
   }catch(error){
     const replay=await findChangeByOperationId(db,actor.installationId,operationId);if(replay)return{status:'replayed',operationId,item:replay.payload?.deleted?null:replay.payload,change:replay};
     const current=await repo.get(resource,id).catch(()=>null);if(current&&(action==='create'||Number(current.version)!==baseVersion))conflict(current,operationId);
