@@ -3,7 +3,7 @@ import { authenticate,can } from './domain/auth.mjs';
 import { getFinancialSummary } from './domain/commercial-finance.mjs';
 import { ensureOpenDailyRentals } from './domain/daily-billing.mjs';
 import { buildOperationalAlerts } from './domain/alerts.mjs';
-import { createRepository } from './storage/repository.mjs';
+import { createRepository,isCloudRuntime } from './storage/repository.mjs';
 import { createSyncClient } from './sync/client.mjs';
 import { esc,money,toast } from './ui/common.mjs';
 import { renderReservas } from './ui/reservas.mjs';
@@ -32,5 +32,12 @@ function renderLogin(){app.innerHTML=`<div class="login-wrap"><form id="login" c
 
 async function configureSync(){const pair=new URLSearchParams(location.search).get('pair');if(window.locadoraDesktop?.getSyncInfo){try{syncInfo=await window.locadoraDesktop.getSyncInfo();if(syncInfo?.available){const meta=syncMeta();syncClient.configure({serverUrl:syncInfo.localUrl,token:syncInfo.token,deviceName:meta.deviceName||'PC principal',enabled:true,autoSync:meta.autoSync});await syncClient.flush();await syncNow({silent:true});}}catch{}}else if(pair&&['http:','https:'].includes(location.protocol)){const meta=syncMeta();syncClient.configure({serverUrl:location.origin,token:pair,deviceName:meta.deviceName||'Celular',enabled:true,autoSync:true});await syncClient.flush();history.replaceState({},document.title,location.pathname+location.hash);await syncNow({silent:true});}window.addEventListener('online',()=>{const meta=syncMeta();if(meta.enabled)void syncNow({silent:false});});setInterval(()=>{const accrued=accrueDailySchedules();if(accrued&&sessionUser)render();const meta=syncMeta();if(meta.enabled&&meta.autoSync&&navigator.onLine!==false)void syncNow({silent:true});},15000);}
 
-async function bootstrap(){app.innerHTML='<div class="login-wrap"><div class="login-card"><strong>Inicializando armazenamento local…</strong><p class="hint">Os dados permanecem neste dispositivo e sincronizam com o PC quando configurado.</p></div></div>';try{repository=await createRepository({onPersistenceError:error=>toast(`Falha ao gravar no dispositivo: ${error.message}. Salve novamente após corrigir o armazenamento.`)});snapshot=repository.load();syncClient=createSyncClient({store:repository.kv});await syncClient.init();if('serviceWorker' in navigator&&globalThis.isSecureContext){try{await navigator.serviceWorker.register('./sw.js');}catch{}}await configureSync();render();}catch(error){app.innerHTML=`<div class="login-wrap"><div class="login-card"><h1>Falha ao iniciar</h1><p class="error">${esc(error.message)}</p><p class="hint">Use um navegador moderno com armazenamento local habilitado.</p></div></div>`;}}
+async function bootstrap(){
+  if(isCloudRuntime()){
+    try{const { bootstrapCloudApp }=await import('./cloud-app.mjs');return await bootstrapCloudApp({app,baseUrl:location.origin});}
+    catch(error){app.innerHTML=`<div class="login-wrap"><div class="login-card"><h1>Falha ao iniciar acesso online</h1><p class="error">${esc(error.message)}</p><p class="hint">O cache local não será usado para substituir silenciosamente o servidor.</p></div></div>`;return;}
+  }
+  app.innerHTML='<div class="login-wrap"><div class="login-card"><strong>Inicializando armazenamento local…</strong><p class="hint">Os dados permanecem neste dispositivo e sincronizam com o PC quando configurado.</p></div></div>';
+  try{repository=await createRepository({onPersistenceError:error=>toast(`Falha ao gravar no dispositivo: ${error.message}. Salve novamente após corrigir o armazenamento.`)});snapshot=repository.load();syncClient=createSyncClient({store:repository.kv});await syncClient.init();if('serviceWorker' in navigator&&globalThis.isSecureContext){try{await navigator.serviceWorker.register('./sw.js');}catch{}}await configureSync();render();}catch(error){app.innerHTML=`<div class="login-wrap"><div class="login-card"><h1>Falha ao iniciar</h1><p class="error">${esc(error.message)}</p><p class="hint">Use um navegador moderno com armazenamento local habilitado.</p></div></div>`;}
+}
 void bootstrap();
