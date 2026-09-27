@@ -31,7 +31,8 @@ export function relationalToSnapshot(dataset) {
   const alertRow = list(dataset.alert_state)[0];
   const rentalPayments = group(dataset.rental_payments, 'rental_id');
   const inspectionItems = group(dataset.inspection_items, 'inspection_id');
-  const inspectionPhotos = group(dataset.legacy_inspection_photos, 'inspection_id');
+  const legacyInspectionPhotos = group(dataset.legacy_inspection_photos, 'inspection_id');
+  const attachmentPhotos = group(list(dataset.attachments).filter(row => row.entity_type === 'inspection' && row.status !== 'deleted'), 'entity_id');
   const billingPayments = group(dataset.billing_payments, 'installment_id');
   const billingConflicts = group(dataset.billing_payment_conflicts, 'installment_id');
 
@@ -93,16 +94,23 @@ export function relationalToSnapshot(dataset) {
     ...(row.paid_at ? { paidAt:row.paid_at } : {}), ...syncFields(row)
   }));
 
-  snapshot.inspections = list(dataset.inspections).map(row => ({
-    id:row.id, rentalId:row.rental_id, vehicleId:row.vehicle_id, kind:row.kind, status:row.status,
-    mileage:row.mileage == null ? null : Number(row.mileage), fuelLevel:row.fuel_level ?? '', notes:row.notes ?? '',
-    damages:parseJson(row.damages_json, []), completedAt:row.completed_at ?? null, createdAt:row.created_at,
-    checklist:(inspectionItems.get(String(row.id)) ?? []).map(item => ({ id:item.item_key, label:item.label, done:boolean(item.done), evidence:item.evidence ?? null })),
-    photos:(inspectionPhotos.get(String(row.id)) ?? []).map(photo => ({
+  snapshot.inspections = list(dataset.inspections).map(row => {
+    const legacy=(legacyInspectionPhotos.get(String(row.id)) ?? []).map(photo => ({
       id:photo.id, name:photo.name ?? 'foto.jpg', type:photo.mime_type ?? 'image/jpeg', dataUrl:photo.data_url, createdAt:photo.created_at
-    })),
-    ...syncFields(row)
-  }));
+    }));
+    const attachments=(attachmentPhotos.get(String(row.id)) ?? []).map(photo => ({
+      id:photo.id, attachmentId:photo.id, name:'foto.jpg', mimeType:photo.mime_type ?? 'image/jpeg', sizeBytes:Number(photo.size_bytes||0),
+      sha256:photo.sha256, createdAt:photo.created_at
+    }));
+    return {
+      id:row.id, rentalId:row.rental_id, vehicleId:row.vehicle_id, kind:row.kind, status:row.status,
+      mileage:row.mileage == null ? null : Number(row.mileage), fuelLevel:row.fuel_level ?? '', notes:row.notes ?? '',
+      damages:parseJson(row.damages_json, []), completedAt:row.completed_at ?? null, createdAt:row.created_at,
+      checklist:(inspectionItems.get(String(row.id)) ?? []).map(item => ({ id:item.item_key, label:item.label, done:boolean(item.done), evidence:item.evidence ?? null })),
+      photos:[...attachments,...legacy],
+      ...syncFields(row)
+    };
+  });
 
   snapshot.maintenance = list(dataset.maintenance).map(row => ({
     id:row.id, vehicleId:row.vehicle_id, type:row.type, dueAt:row.due_at ?? '', dueMileage:row.due_mileage == null ? null : Number(row.due_mileage),
