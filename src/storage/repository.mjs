@@ -15,10 +15,11 @@ function normalize(raw){
 async function createDesktopStore(){
   const bridge=globalThis.window?.locadoraDesktop;
   if(!bridge?.dbGet||!bridge?.dbSet||!bridge?.dbRemove)return null;
+  const hasSnapshotBridge=Boolean(bridge.snapshotLoad&&bridge.snapshotSave);
   return Object.freeze({
     kind:'sqlite-desktop',
-    get:(key)=>bridge.dbGet(String(key)),
-    set:(key,value)=>bridge.dbSet(String(key),String(value)),
+    get:(key)=>hasSnapshotBridge&&String(key)===STORE_KEY?bridge.snapshotLoad():bridge.dbGet(String(key)),
+    set:(key,value)=>hasSnapshotBridge&&String(key)===STORE_KEY?bridge.snapshotSave(String(value)):bridge.dbSet(String(key),String(value)),
     remove:(key)=>bridge.dbRemove(String(key)),
     flush:async()=>true
   });
