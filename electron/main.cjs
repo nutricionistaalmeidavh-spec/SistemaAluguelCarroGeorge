@@ -6,8 +6,17 @@ const fs=require('node:fs');
 const { SqliteStore }=require('./sqlite-store.cjs');
 const { startSyncServer }=require('./sync-server.cjs');
 
-let syncInfo=null,store=null,syncServer=null;
+const APP_NAME='Sistema Locadora George';
+const APP_ID='com.artisys.locadora.george';
+const DATA_DIR_NAME='Sistema Locadora George';
+const DB_FILE='locadora-george.sqlite';
+
+app.setName(APP_NAME);
+if(process.platform==='win32')app.setAppUserModelId(APP_ID);
 if(process.env.LOCADORA_E2E_USER_DATA)app.setPath('userData',path.resolve(process.env.LOCADORA_E2E_USER_DATA));
+else app.setPath('userData',path.join(app.getPath('appData'),DATA_DIR_NAME));
+
+let syncInfo=null,store=null,syncServer=null;
 
 function tokenFromSqlite(){
   const current=store.get('sync:token');if(current)return current;
@@ -27,13 +36,13 @@ function lanAddresses(){
 
 async function startLanSync(){
   const userData=app.getPath('userData');
-  store=new SqliteStore(path.join(userData,'locadora.sqlite'));
+  store=new SqliteStore(path.join(userData,DB_FILE));
   migrateLegacySidecars(userData);
   const token=tokenFromSqlite(),rootDir=app.getAppPath();
   try{syncServer=await startSyncServer({host:'0.0.0.0',port:4174,token,rootDir,store});}
   catch(error){if(error?.code!=='EADDRINUSE')throw error;syncServer=await startSyncServer({host:'0.0.0.0',port:0,token,rootDir,store});}
   const urls=lanAddresses().map(address=>`http://${address}:${syncServer.port}`);
-  syncInfo={available:true,port:syncServer.port,token,localUrl:`http://127.0.0.1:${syncServer.port}`,urls,pairingUrls:urls.map(url=>`${url}/?pair=${encodeURIComponent(token)}`),database:path.join(userData,'locadora.sqlite')};
+  syncInfo={available:true,port:syncServer.port,token,localUrl:`http://127.0.0.1:${syncServer.port}`,urls,pairingUrls:urls.map(url=>`${url}/?pair=${encodeURIComponent(token)}`),database:path.join(userData,DB_FILE)};
 }
 
 function registerIpc(){
