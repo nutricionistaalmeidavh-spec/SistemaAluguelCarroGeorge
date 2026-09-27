@@ -11,10 +11,20 @@ const APP_ID='com.artisys.locadora.george';
 const DATA_DIR_NAME='Sistema Locadora George';
 const DB_FILE='locadora-george.sqlite';
 
+function configureStoragePaths(){
+  const userData=process.env.LOCADORA_E2E_USER_DATA
+    ? path.resolve(process.env.LOCADORA_E2E_USER_DATA)
+    : path.join(app.getPath('appData'),DATA_DIR_NAME);
+  const sessionData=path.join(userData,'SessionData');
+  fs.mkdirSync(userData,{recursive:true});
+  fs.mkdirSync(sessionData,{recursive:true});
+  app.setPath('userData',userData);
+  app.setPath('sessionData',sessionData);
+}
+
 app.setName(APP_NAME);
 if(process.platform==='win32')app.setAppUserModelId(APP_ID);
-if(process.env.LOCADORA_E2E_USER_DATA)app.setPath('userData',path.resolve(process.env.LOCADORA_E2E_USER_DATA));
-else app.setPath('userData',path.join(app.getPath('appData'),DATA_DIR_NAME));
+configureStoragePaths();
 
 let syncInfo=null,store=null,syncServer=null;
 
