@@ -1,4 +1,5 @@
 import { API_PREFIX, publicHealth } from './config.mjs';
+import { handleAttachmentRoute, isAttachmentRoute } from './api/attachment-routes.mjs';
 import { handleAuthRoute } from './api/auth-routes.mjs';
 import { handleBillingRoute, isBillingOperationRoute } from './api/billing-routes.mjs';
 import { handleRentalRoute, isRentalOperationRoute } from './api/rental-routes.mjs';
@@ -27,6 +28,7 @@ export default {
     }
     if(url.pathname.startsWith(`${API_PREFIX}/`)){
       const auth=await resolveSession(request,env);
+      if(isAttachmentRoute(request))return handleAttachmentRoute(request,env,ctx,{auth});
       if(isRentalOperationRoute(request))return handleRentalRoute(request,env,ctx,{auth});
       if(isBillingOperationRoute(request))return handleBillingRoute(request,env,ctx,{auth});
       return routeApi(request,env,ctx,{auth});
