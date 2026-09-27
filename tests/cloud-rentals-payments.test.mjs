@@ -17,6 +17,8 @@ test('duas reservas sobrepostas para o mesmo veículo nunca coexistem',async()=>
     assert.equal(db.scalar('SELECT COUNT(*) FROM rentals WHERE installation_id=? AND deleted_at IS NULL',ctx.installationId),1);
     assert.equal(db.scalar("SELECT COUNT(*) FROM ledger WHERE installation_id=? AND kind='receivable'",ctx.installationId),1);
     assert.equal(db.scalar("SELECT COUNT(*) FROM audit_log WHERE installation_id=? AND action='rental.created'",ctx.installationId),1);
+    assert.equal(db.scalar("SELECT COUNT(*) FROM sync_changes WHERE installation_id=? AND operation_id='OP-RENT-1' AND entity_type='rental'",ctx.installationId),1);
+    assert.equal(db.scalar("SELECT COUNT(*) FROM sync_changes WHERE installation_id=? AND operation_id='OP-RENT-2'",ctx.installationId),0);
   }finally{db.close();}
 });
 
@@ -33,6 +35,7 @@ test('retry do mesmo pagamento é idempotente e não duplica caixa/auditoria',as
     assert.equal(db.scalar('SELECT COUNT(*) FROM rental_payments WHERE installation_id=? AND rental_id=?',ctx.installationId,rental.result.id),1);
     assert.equal(db.scalar('SELECT paid_amount FROM ledger WHERE installation_id=? AND rental_id=? AND kind=?',ctx.installationId,rental.result.id,'receivable'),50);
     assert.equal(db.scalar("SELECT COUNT(*) FROM audit_log WHERE installation_id=? AND action='payment.received'",ctx.installationId),1);
+    assert.equal(db.scalar("SELECT COUNT(*) FROM sync_changes WHERE installation_id=? AND operation_id='OP-PAY-1' AND entity_type='rentalPayment'",ctx.installationId),1);
   }finally{db.close();}
 });
 
@@ -44,5 +47,6 @@ test('pagamento acima do saldo é rejeitado sem mutação financeira',async()=>{
     await assert.rejects(()=>recordRentalPaymentOperation(ctx,{rentalId:rental.result.id,amount:100,method:'dinheiro'},'OP-PAY-OVER'),error=>error?.code==='payment_exceeds_balance');
     assert.equal(db.scalar('SELECT COUNT(*) FROM rental_payments WHERE installation_id=? AND rental_id=?',ctx.installationId,rental.result.id),0);
     assert.equal(db.scalar('SELECT paid_amount FROM ledger WHERE installation_id=? AND rental_id=? AND kind=?',ctx.installationId,rental.result.id,'receivable'),0);
+    assert.equal(db.scalar("SELECT COUNT(*) FROM sync_changes WHERE installation_id=? AND operation_id='OP-PAY-OVER'",ctx.installationId),0);
   }finally{db.close();}
 });
