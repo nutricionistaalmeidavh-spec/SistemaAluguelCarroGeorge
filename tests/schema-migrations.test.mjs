@@ -1,0 +1,72 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, cpSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
+import migrationRunner from '../electron/migration-runner.cjs';
+
+const { applyMigrations } = migrationRunner;
+const migrationsDir = fileURLToPath(new URL('../db/migrations/', import.meta.url));
+
+function tableNames(db) {
+  return new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
+}
+
+test('canonical migrations create the relational schema with critical foreign keys', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    const result = applyMigrations(db, migrationsDir);
+    assert.deepEqual(result.applied, ['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql']);
+    assert.equal(result.version, 3);
+
+    const names = tableNames(db);
+    for (const name of [
+      'installations','devices','users','customers','vehicles','rentals','rental_payments',
+      'expenses','ledger','inspections','inspection_items','maintenance','contract_templates',
+      'issued_contracts','billing_plans','billing_installments','collection_actions','audit_log',
+      'sync_changes','sync_cursors','schema_migrations'
+    ]) assert.ok(names.has(name), `tabela ausente: ${name}`);
+
+    const customerColumns = db.prepare('PRAGMA table_info(customers)').all().map(row => row.name);
+    for (const column of ['id','installation_id','created_at','updated_at','version','updated_by_device','deleted_at']) {
+      assert.ok(customerColumns.includes(column), `customers sem ${column}`);
+    }
+
+    const rentalFks = db.prepare('PRAGMA foreign_key_list(rentals)').all().map(row => row.table);
+    assert.ok(rentalFks.includes('customers'));
+    assert.ok(rentalFks.includes('vehicles'));
+  } finally {
+    db.close();
+  }
+});
+
+test('migration runner is idempotent', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    const first = applyMigrations(db, migrationsDir);
+    const second = applyMigrations(db, migrationsDir);
+    assert.equal(first.applied.length, 3);
+    assert.deepEqual(second, { applied:[], version:3 });
+    assert.equal(db.prepare('SELECT COUNT(*) AS total FROM schema_migrations').get().total, 3);
+  } finally {
+    db.close();
+  }
+});
+
+test('migration runner rejects changed content for an already applied migration', () => {
+  const root = mkdtempSync(join(tmpdir(), 'locadora-migrations-'));
+  const copied = join(root, 'migrations');
+  cpSync(migrationsDir, copied, { recursive:true });
+  const db = new DatabaseSync(':memory:');
+  try {
+    applyMigrations(db, copied);
+    const file = join(copied, '0001_core.sql');
+    writeFileSync(file, `${readFileSync(file, 'utf8')}\n-- alteração indevida\n`, 'utf8');
+    assert.throws(() => applyMigrations(db, copied), /checksum|alterada|migration/i);
+  } finally {
+    db.close();
+    rmSync(root, { recursive:true, force:true });
+  }
+});
