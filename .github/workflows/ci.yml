@@ -26,6 +26,8 @@ jobs:
       - run: npm run qa:install
       - name: Static, domain, persistence, sync and vertical gates
         run: npm run verify
+      - name: Cloudflare local D1 migrations and public assets
+        run: npm run cloud:migrations:local && npm run cloud:assets && npm run cloud:test
       - name: Code coverage gate
         run: npm run coverage
       - name: Electron E2E
