@@ -6,6 +6,7 @@ import { createPwaSqliteStore } from './pwa-sqlite.mjs';
 import { createAttachmentStore } from './attachment-store.mjs';
 import { createCacheStore } from './cache-store.mjs';
 import { createCloudRepository } from './cloud-repository.mjs';
+import { createCloudSync } from '../sync/cloud-sync.mjs';
 import { createOutbox } from '../sync/outbox.mjs';
 
 export const STORE_KEY='app:snapshot:v3';
@@ -40,7 +41,8 @@ export async function createCloudRuntimeRepository({store=null,baseUrl='',fetchI
   const durableOutbox=outbox??createOutbox(backing);
   const api=createApiClient({baseUrl,fetchImpl,maxRetries,retryDelayMs,onUnauthorized:()=>cache.clearSession()});
   const cloud=createCloudRepository({api,cache,outbox:durableOutbox});
-  return Object.freeze({...cloud,api,kv:backing,outbox:durableOutbox});
+  const cloudSync=createCloudSync({api,cache,store:backing});
+  return Object.freeze({...cloud,api,kv:backing,outbox:durableOutbox,cloudSync});
 }
 
 export async function createRepository({onPersistenceError=()=>{}}={}){
