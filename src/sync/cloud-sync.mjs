@@ -9,7 +9,18 @@ export function createCloudSync({api,cache,store,cursorKey=DEFAULT_CURSOR_KEY}={
   const key=String(cursorKey||DEFAULT_CURSOR_KEY);
   async function getCursor(){return cursorValue(await store.get(key));}
   async function setCursor(value){const cursor=cursorValue(value);await store.set(key,String(cursor));await store.flush?.();return cursor;}
+  async function patchCached(collection,patch){
+    if(!patch?.id)return false;
+    const items=await cache.getResource(collection),current=items.find(item=>String(item?.id)===String(patch.id));
+    if(!current)return false;
+    await cache.upsertResourceItem(collection,{...current,...patch});return true;
+  }
   async function applyChange(change){
+    if(change?.entityType==='rentalPayment')return patchCached('rentals',change.payload?.rental);
+    if(change?.entityType==='billingPayment'){
+      const rentalApplied=await patchCached('rentals',change.payload?.rental),installmentApplied=await patchCached('billingInstallments',change.payload?.installment);
+      return rentalApplied||installmentApplied;
+    }
     const collection=ENTITY_COLLECTION[change?.entityType];if(!collection)return false;
     if(change.operation==='delete'||change.payload?.deleted){await cache.removeResourceItem(collection,change.entityId);return true;}
     if(change.payload&&typeof change.payload==='object'){await cache.upsertResourceItem(collection,change.payload);return true;}
