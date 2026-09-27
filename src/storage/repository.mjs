@@ -2,6 +2,7 @@ import { createEmptySnapshot, migrateLegacySnapshot } from '../domain/rental.mjs
 import { ensureCommercialSnapshot } from '../domain/commercial.mjs';
 import { syncMaintenanceAvailability } from '../domain/maintenance.mjs';
 import { createPwaSqliteStore } from './pwa-sqlite.mjs';
+import { createAttachmentStore } from './attachment-store.mjs';
 
 export const STORE_KEY='app:snapshot:v3';
 
@@ -27,6 +28,7 @@ async function createDesktopStore(){
 
 export async function createRepository({onPersistenceError=()=>{}}={}){
   const storage=await createDesktopStore()??await createPwaSqliteStore();
+  const attachments=await createAttachmentStore();
   const raw=await storage.get(STORE_KEY);
   let cache=normalize(raw);
   if(raw==null||Number((typeof raw==='string'?JSON.parse(raw):raw)?.version||0)<4)await storage.set(STORE_KEY,JSON.stringify(cache));
@@ -59,6 +61,7 @@ export async function createRepository({onPersistenceError=()=>{}}={}){
 
   return Object.freeze({
     kind:storage.kind,
+    attachments,
     load(){return cache;},
     save(snapshot){cache=normalize(snapshot);persist(cache);return cache;},
     flush,
