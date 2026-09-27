@@ -47,6 +47,8 @@ test('pagamento parcial de diária reconcilia parcela e recebível pai sem dupla
     assert.equal(ctx.db.scalar("SELECT paid_amount FROM ledger WHERE id='FIN-PARENT'"),80);
     assert.equal(ctx.db.scalar("SELECT COUNT(*) FROM billing_payments WHERE installment_id='PAR-1'"),2);
     assert.equal(ctx.db.scalar("SELECT COUNT(*) FROM rental_payments WHERE rental_id=?",ctx.rentalId),0);
+    assert.equal(ctx.db.scalar("SELECT COUNT(*) FROM sync_changes WHERE installation_id=? AND operation_id='OP-INST-30' AND entity_type='billingPayment'",ctx.installationId),1);
+    assert.equal(ctx.db.scalar("SELECT COUNT(*) FROM sync_changes WHERE installation_id=? AND operation_id='OP-INST-50' AND entity_type='billingPayment'",ctx.installationId),1);
   }finally{ctx.db.close();}
 });
 
@@ -59,6 +61,7 @@ test('retry de pagamento de parcela usa o mesmo recibo idempotente',async()=>{
     assert.equal(a.result.id,b.result.id);
     assert.equal(ctx.db.scalar("SELECT COUNT(*) FROM billing_payments WHERE installment_id='PAR-2'"),1);
     assert.equal(ctx.db.scalar("SELECT paid_amount FROM billing_installments WHERE id='PAR-2'"),25);
+    assert.equal(ctx.db.scalar("SELECT COUNT(*) FROM sync_changes WHERE installation_id=? AND operation_id='OP-INST-RETRY'",ctx.installationId),1);
   }finally{ctx.db.close();}
 });
 
@@ -69,5 +72,6 @@ test('pagamento de parcela acima do saldo falha sem mutação',async()=>{
     assert.equal(ctx.db.scalar("SELECT COUNT(*) FROM billing_payments WHERE installment_id='PAR-1'"),0);
     assert.equal(ctx.db.scalar("SELECT paid_amount FROM billing_installments WHERE id='PAR-1'"),0);
     assert.equal(ctx.db.scalar("SELECT paid_amount FROM ledger WHERE id='FIN-PARENT'"),0);
+    assert.equal(ctx.db.scalar("SELECT COUNT(*) FROM sync_changes WHERE installation_id=? AND operation_id='OP-INST-OVER'",ctx.installationId),0);
   }finally{ctx.db.close();}
 });
