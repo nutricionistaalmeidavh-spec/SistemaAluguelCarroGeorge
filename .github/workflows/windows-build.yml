@@ -1,4 +1,4 @@
-name: Locadora Windows Build
+name: Locadora George Windows Build
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
         run: npm run dist
       - uses: actions/upload-artifact@v4
         with:
-          name: Sistema-Locadora-Windows
-          path: release/Sistema-Locadora-Setup-*.exe
+          name: Sistema-Locadora-George-Windows
+          path: release/Sistema-Locadora-George-Setup-*.exe
           if-no-files-found: error
           retention-days: 14
