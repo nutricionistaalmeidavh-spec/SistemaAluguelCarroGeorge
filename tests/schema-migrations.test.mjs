@@ -9,7 +9,7 @@ import migrationRunner from '../electron/migration-runner.cjs';
 
 const { applyMigrations } = migrationRunner;
 const migrationsDir = fileURLToPath(new URL('../db/migrations/', import.meta.url));
-const migrationFiles=['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql','0005_auth_sessions.sql','0006_auth_policy.sql','0007_operation_receipts.sql','0008_cloud_attachments.sql'];
+const migrationFiles=['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql','0005_auth_sessions.sql','0006_auth_policy.sql','0007_operation_receipts.sql','0008_cloud_attachments.sql','0009_plan03_dr.sql'];
 
 function tableNames(db) {
   return new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
@@ -27,8 +27,12 @@ test('canonical migrations create the relational schema with critical foreign ke
       'installations','devices','users','customers','vehicles','rentals','rental_payments',
       'expenses','ledger','inspections','inspection_items','maintenance','contract_templates',
       'issued_contracts','billing_plans','billing_installments','collection_actions','audit_log',
-      'sync_changes','sync_cursors','attachments','sessions','operation_receipts','schema_migrations'
+      'sync_changes','sync_cursors','attachments','sessions','operation_receipts','schema_migrations',
+      'login_throttle','device_credentials','cloud_backups','restore_records'
     ]) assert.ok(names.has(name), `tabela ausente: ${name}`);
+
+    const installationColumns = db.prepare('PRAGMA table_info(installations)').all().map(row => row.name);
+    assert.ok(installationColumns.includes('restore_generation'),'installations sem restore_generation');
 
     const userColumns = db.prepare('PRAGMA table_info(users)').all().map(row => row.name);
     assert.ok(userColumns.includes('must_change_password'),'users sem must_change_password');
@@ -61,6 +65,10 @@ test('canonical migrations create the relational schema with critical foreign ke
     const sessionFks = db.prepare('PRAGMA foreign_key_list(sessions)').all().map(row => row.table);
     assert.ok(sessionFks.includes('installations'));
     assert.ok(sessionFks.includes('users'));
+    const credentialFks = db.prepare('PRAGMA foreign_key_list(device_credentials)').all().map(row => row.table);
+    assert.ok(credentialFks.includes('installations'));
+    assert.ok(credentialFks.includes('users'));
+    assert.ok(credentialFks.includes('devices'));
   } finally {
     db.close();
   }
