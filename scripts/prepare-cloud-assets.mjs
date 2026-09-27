@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, readdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,4 +16,8 @@ for(const directory of directories){
   await mkdir(join(output,directory),{recursive:true});
   await cp(source,join(output,directory),{recursive:true});
 }
+const cloudIndexPath=join(output,'index.html');
+const cloudIndex=await readFile(cloudIndexPath,'utf8');
+const marker='  <meta name="locadora-runtime" content="cloud" />\n';
+if(!cloudIndex.includes('name="locadora-runtime"'))await writeFile(cloudIndexPath,cloudIndex.replace('  <meta name="viewport" content="width=device-width,initial-scale=1" />\n',`  <meta name="viewport" content="width=device-width,initial-scale=1" />\n${marker}`),'utf8');
 console.log(`Cloud PWA assets preparados em ${output}`);
