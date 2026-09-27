@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
+    "test:migration": "node --test tests/migration-*.test.mjs tests/schema-*.test.mjs tests/sqlite-relational.test.mjs tests/attachments-local.test.mjs",
     "serve": "python3 -m http.server 4173",
     "pwa:prepare": "node scripts/prepare-pwa.mjs",
     "postinstall": "npm run pwa:prepare",
