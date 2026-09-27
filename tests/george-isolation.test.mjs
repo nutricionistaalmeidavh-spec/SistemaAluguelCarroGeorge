@@ -13,6 +13,7 @@ test('build Windows usa identidade exclusiva do George', async()=>{
   assert.equal(pkg.build.artifactName,'Sistema-Locadora-George-Setup-${version}.${ext}');
   assert.equal(pkg.build.nsis.shortcutName,'Sistema Locadora George');
   assert.equal(pkg.build.nsis.uninstallDisplayName,'Sistema Locadora George');
+  assert.match(pkg.scripts.dist,/--publish never/);
 });
 
 test('desktop usa AppData, sessionData, AUMID e SQLite exclusivos do George', async()=>{
