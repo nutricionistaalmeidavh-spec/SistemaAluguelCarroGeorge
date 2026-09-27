@@ -64,6 +64,7 @@ class RelationalStore {
     this.core.load(dataset);
     this.commercial.load(dataset);
     this.operations.load(dataset);
+    dataset.attachments=this.db.prepare('SELECT * FROM attachments WHERE deleted_at IS NULL ORDER BY created_at,id').all();
     const setting = dataset.app_settings?.[0];
     const installation = dataset.installations?.[0];
     dataset.meta.updated_at = setting?.updated_at ?? installation?.updated_at ?? dataset.meta.updated_at;
