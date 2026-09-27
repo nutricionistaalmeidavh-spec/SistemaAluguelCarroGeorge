@@ -49,3 +49,65 @@ export async function recordRentalPaymentOperation(context,input,operationId){
   }
   return{result,change:{entityType:'rental_payment',entityId:paymentId,operation:'create'},replayed:false};
 }
+
+export async function recordInstallmentPaymentOperation(context,input,operationId){
+  const db=context?.db,auth=context?.auth,installationId=auth?.installationId,userId=auth?.userId;
+  if(!db?.prepare||!db?.batch||!installationId||!userId)fail('invalid_context');
+  const op=operationIdentity(operationId),previous=await findOperationReceipt(db,installationId,op);if(previous?.result)return{result:previous.result,change:null,replayed:true};
+  const installmentId=required(input?.installmentId,'installment_required'),method=required(input?.method,'method_required'),amount=round(input?.amount);if(!(amount>0))fail('invalid_amount');
+  const installment=await db.prepare(`SELECT i.id, i.rental_id, i.amount, i.status,
+      COALESCE((SELECT SUM(p.amount) FROM billing_payments p WHERE p.installation_id = i.installation_id AND p.installment_id = i.id AND p.deleted_at IS NULL),0) AS paid_amount
+    FROM billing_installments i
+    WHERE i.installation_id = ? AND i.id = ? AND i.deleted_at IS NULL LIMIT 1`).bind(installationId,installmentId).first();
+  if(!installment)fail('installment_not_found');if(installment.status==='cancelled')fail('installment_cancelled');
+  if(amount>round(Number(installment.amount)-Number(installment.paid_amount))+0.001)fail('payment_exceeds_balance','Pagamento excede o saldo da parcela.');
+  const rentalId=installment.rental_id,now=new Date().toISOString(),paidAt=input.paidAt??now,executionId=`EXE-${crypto.randomUUID()}`,paymentId=`BPG-${crypto.randomUUID()}`;
+  const result={id:paymentId,installmentId,rentalId,amount,method,paidAt};
+  const receipt=beginOperationStatement(db,{installationId,operationId:op,kind:'installment.payment',executionId,createdAt:now});
+  const payment=db.prepare(`INSERT INTO billing_payments
+      (id, installation_id, installment_id, amount, method, paid_at, created_at, updated_at, version, updated_by_device)
+    SELECT ?, ?, i.id, ?, ?, ?, ?, ?, 1, ? FROM billing_installments i
+    WHERE i.installation_id = ? AND i.id = ? AND i.deleted_at IS NULL AND i.status <> 'cancelled'
+      AND EXISTS (SELECT 1 FROM operation_receipts WHERE installation_id = ? AND operation_id = ? AND execution_id = ? AND result_json IS NULL)
+      AND ? <= i.amount - COALESCE((SELECT SUM(p.amount) FROM billing_payments p WHERE p.installation_id = i.installation_id AND p.installment_id = i.id AND p.deleted_at IS NULL),0) + 0.001`)
+    .bind(paymentId,installationId,amount,method,paidAt,now,now,auth.deviceId??null,installationId,installmentId,installationId,op,executionId,amount);
+  const updateInstallment=db.prepare(`UPDATE billing_installments SET
+      paid_amount = (SELECT COALESCE(SUM(p.amount),0) FROM billing_payments p WHERE p.installation_id = ? AND p.installment_id = ? AND p.deleted_at IS NULL),
+      status = CASE WHEN amount <= (SELECT COALESCE(SUM(p.amount),0) FROM billing_payments p WHERE p.installation_id = ? AND p.installment_id = ? AND p.deleted_at IS NULL) + 0.001 THEN 'paid' ELSE 'partial' END,
+      updated_at = ?, version = version + 1, updated_by_device = ?
+    WHERE installation_id = ? AND id = ? AND deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM billing_payments WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)`)
+    .bind(installationId,installmentId,installationId,installmentId,now,auth.deviceId??null,installationId,installmentId,installationId,paymentId);
+  const updateInstallmentLedger=db.prepare(`UPDATE ledger SET
+      paid_amount = (SELECT COALESCE(SUM(p.amount),0) FROM billing_payments p WHERE p.installation_id = ? AND p.installment_id = ? AND p.deleted_at IS NULL),
+      status = CASE WHEN amount <= (SELECT COALESCE(SUM(p.amount),0) FROM billing_payments p WHERE p.installation_id = ? AND p.installment_id = ? AND p.deleted_at IS NULL) + 0.001 THEN 'paid' ELSE 'partial' END,
+      paid_at = CASE WHEN amount <= (SELECT COALESCE(SUM(p.amount),0) FROM billing_payments p WHERE p.installation_id = ? AND p.installment_id = ? AND p.deleted_at IS NULL) + 0.001 THEN ? ELSE NULL END,
+      updated_at = ?, version = version + 1, updated_by_device = ?
+    WHERE installation_id = ? AND installment_id = ? AND kind = 'billing_receivable' AND deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM billing_payments WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)`)
+    .bind(installationId,installmentId,installationId,installmentId,installationId,installmentId,paidAt,now,auth.deviceId??null,installationId,installmentId,installationId,paymentId);
+  const paidForRental=`SELECT COALESCE(SUM(p.amount),0) FROM billing_payments p JOIN billing_installments i ON i.id = p.installment_id AND i.installation_id = p.installation_id WHERE p.installation_id = ? AND i.rental_id = ? AND p.deleted_at IS NULL AND i.deleted_at IS NULL AND i.status <> 'cancelled'`;
+  const updateParentLedger=db.prepare(`UPDATE ledger SET
+      paid_amount = (${paidForRental}),
+      status = CASE WHEN amount <= (${paidForRental}) + 0.001 THEN 'paid' WHEN (${paidForRental}) > 0 THEN 'partial' ELSE 'open' END,
+      paid_at = CASE WHEN amount <= (${paidForRental}) + 0.001 THEN ? ELSE NULL END,
+      updated_at = ?, version = version + 1, updated_by_device = ?
+    WHERE installation_id = ? AND rental_id = ? AND kind = 'receivable' AND billing_purpose = 'rental' AND deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM billing_payments WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)`)
+    .bind(installationId,rentalId,installationId,rentalId,installationId,rentalId,installationId,rentalId,paidAt,now,auth.deviceId??null,installationId,rentalId,installationId,paymentId);
+  const updateRental=db.prepare(`UPDATE rentals SET
+      payment_status = CASE WHEN total <= (${paidForRental}) + 0.001 THEN 'pago' ELSE 'aberto' END,
+      updated_at = ?, version = version + 1, updated_by_device = ?
+    WHERE installation_id = ? AND id = ? AND deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM billing_payments WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)`)
+    .bind(installationId,rentalId,now,auth.deviceId??null,installationId,rentalId,installationId,paymentId);
+  const audit=auditStatement(db,{installationId,actorId:userId,action:'billing.payment.received',entityType:'billing_installment',entityId:installmentId,details:{paymentId,rentalId,amount,method},deviceId:auth.deviceId??null,at:now,guardSql:'EXISTS (SELECT 1 FROM billing_payments WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)',guardParams:[installationId,paymentId]});
+  const complete=completeOperationStatement(db,{installationId,operationId:op,executionId,result,completedAt:now,guardSql:'EXISTS (SELECT 1 FROM billing_payments WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)',guardParams:[installationId,paymentId]});
+  const batch=await db.batch([receipt,payment,updateInstallment,updateInstallmentLedger,updateParentLedger,updateRental,audit,complete]);
+  if(Number(batch?.[1]?.meta?.changes??0)!==1){
+    const concurrent=await findOperationReceipt(db,installationId,op);if(concurrent?.result)return{result:concurrent.result,change:null,replayed:true};
+    await abandonOperation(db,{installationId,operationId:op,executionId});
+    fail('payment_exceeds_balance','Pagamento excede o saldo da parcela.');
+  }
+  return{result,change:{entityType:'billing_payment',entityId:paymentId,operation:'create'},replayed:false};
+}
