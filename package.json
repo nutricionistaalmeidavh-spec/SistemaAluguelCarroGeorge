@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "test:migration": "node --test tests/migration-*.test.mjs tests/schema-*.test.mjs tests/sqlite-relational.test.mjs tests/attachments-local.test.mjs",
+    "test:migration": "node --test tests/migration-*.test.mjs",
     "serve": "python3 -m http.server 4173",
     "pwa:prepare": "node scripts/prepare-pwa.mjs",
     "postinstall": "npm run pwa:prepare",
@@ -20,7 +20,7 @@
     "coverage:vertical": "node scripts/check-vertical-coverage.cjs",
     "e2e": "node --test --test-concurrency=1 qa/e2e/*.test.cjs",
     "e2e:smoke": "node --test qa/e2e/smoke.test.cjs",
-    "verify": "npm run check && npm test && npm run coverage:vertical",
+    "verify": "npm run check && npm test && npm run test:migration && npm run coverage:vertical",
     "release:check": "npm run verify && npm run coverage && npm run e2e && npm run qa:release",
     "ci:install": "npm install --no-audit --no-fund"
   },
