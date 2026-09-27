@@ -7,11 +7,11 @@ async function readJsonc(path){
   return JSON.parse(raw.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,''));
 }
 
-test('Cloudflare config declara Worker, assets, D1 e R2 sem segredos reais',async()=>{
+test('Cloudflare config declara Worker, assets públicos isolados, D1 e R2 sem segredos reais',async()=>{
   const config=await readJsonc('wrangler.jsonc');
   assert.equal(config.main,'cloudflare/worker.mjs');
   assert.equal(config.compatibility_date,'2026-09-27');
-  assert.equal(config.assets?.directory,'.');
+  assert.equal(config.assets?.directory,'.cloudflare/public');
   assert.equal(config.assets?.binding,'ASSETS');
   assert.equal(config.d1_databases?.length,1);
   assert.equal(config.d1_databases[0].binding,'DB');
@@ -20,7 +20,7 @@ test('Cloudflare config declara Worker, assets, D1 e R2 sem segredos reais',asyn
   assert.equal(config.r2_buckets[0].binding,'ATTACHMENTS');
   const serialized=JSON.stringify(config);
   assert.doesNotMatch(serialized,/api[_-]?token|secret|password/i);
-  assert.match(config.d1_databases[0].database_id,/LOCAL|PLACEHOLDER/i);
+  assert.match(config.d1_databases[0].database_id,/^0{8}-0{4}-0{4}-0{4}-0{12}$/);
   assert.match(config.r2_buckets[0].bucket_name,/local|dev/i);
 });
 
