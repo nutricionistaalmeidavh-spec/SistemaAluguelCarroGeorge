@@ -1,6 +1,7 @@
 {
-  "name":"Sistema Locadora",
-  "short_name":"Locadora",
+  "id":"artisys-locadora-george",
+  "name":"Sistema Locadora George",
+  "short_name":"Locadora George",
   "description":"Gestão local de reservas, frota, vistorias, manutenção e financeiro.",
   "start_url":"./",
   "scope":"./",

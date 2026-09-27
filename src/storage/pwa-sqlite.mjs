@@ -1,7 +1,7 @@
-const DB_FILE='locadora.sqlite';
+const DB_FILE='locadora-george.sqlite';
 const SQLITE_JS='./vendor/sqlite/sql-wasm.js';
 const SQLITE_WASM='./vendor/sqlite/sql-wasm.wasm';
-const IDB_NAME='artisys-locadora-web';
+const IDB_NAME='artisys-locadora-george-web';
 const IDB_STORE='kv';
 
 function loadScript(src){
