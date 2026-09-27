@@ -32,7 +32,7 @@ jobs:
       - name: Substituir conteudo pelo snapshot do sistema base
         shell: bash
         run: |
-          rsync -a --delete --exclude='.git/' source/ target/
+          rsync -a --delete --exclude='.git/' --exclude='.github/workflows/' source/ target/
 
       - name: Commitar copia independente
         working-directory: target
