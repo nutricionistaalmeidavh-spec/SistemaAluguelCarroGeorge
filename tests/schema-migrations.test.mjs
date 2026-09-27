@@ -9,7 +9,7 @@ import migrationRunner from '../electron/migration-runner.cjs';
 
 const { applyMigrations } = migrationRunner;
 const migrationsDir = fileURLToPath(new URL('../db/migrations/', import.meta.url));
-const migrationFiles=['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql','0005_auth_sessions.sql','0006_auth_policy.sql','0007_operation_receipts.sql'];
+const migrationFiles=['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql','0005_auth_sessions.sql','0006_auth_policy.sql','0007_operation_receipts.sql','0008_cloud_attachments.sql'];
 
 function tableNames(db) {
   return new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
@@ -39,7 +39,7 @@ test('canonical migrations create the relational schema with critical foreign ke
     }
 
     const attachmentColumns = db.prepare('PRAGMA table_info(attachments)').all().map(row => row.name);
-    for (const column of ['id','installation_id','entity_type','entity_id','local_path','mime_type','size_bytes','sha256','created_at','created_by','status','updated_at','version','updated_by_device','deleted_at']) {
+    for (const column of ['id','installation_id','entity_type','entity_id','local_path','mime_type','size_bytes','sha256','created_at','created_by','status','updated_at','version','updated_by_device','deleted_at','object_key','storage_backend']) {
       assert.ok(attachmentColumns.includes(column), `attachments sem ${column}`);
     }
 
