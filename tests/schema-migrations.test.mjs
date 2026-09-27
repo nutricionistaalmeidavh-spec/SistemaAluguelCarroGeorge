@@ -9,7 +9,7 @@ import migrationRunner from '../electron/migration-runner.cjs';
 
 const { applyMigrations } = migrationRunner;
 const migrationsDir = fileURLToPath(new URL('../db/migrations/', import.meta.url));
-const migrationFiles=['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql','0005_auth_sessions.sql','0006_auth_policy.sql'];
+const migrationFiles=['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql','0005_auth_sessions.sql','0006_auth_policy.sql','0007_operation_receipts.sql'];
 
 function tableNames(db) {
   return new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
@@ -27,7 +27,7 @@ test('canonical migrations create the relational schema with critical foreign ke
       'installations','devices','users','customers','vehicles','rentals','rental_payments',
       'expenses','ledger','inspections','inspection_items','maintenance','contract_templates',
       'issued_contracts','billing_plans','billing_installments','collection_actions','audit_log',
-      'sync_changes','sync_cursors','attachments','sessions','schema_migrations'
+      'sync_changes','sync_cursors','attachments','sessions','operation_receipts','schema_migrations'
     ]) assert.ok(names.has(name), `tabela ausente: ${name}`);
 
     const userColumns = db.prepare('PRAGMA table_info(users)').all().map(row => row.name);
@@ -46,6 +46,11 @@ test('canonical migrations create the relational schema with critical foreign ke
     const sessionColumns = db.prepare('PRAGMA table_info(sessions)').all().map(row => row.name);
     for (const column of ['id','installation_id','user_id','token_hash','device_id','user_agent_hash','created_at','last_seen_at','expires_at','revoked_at']) {
       assert.ok(sessionColumns.includes(column), `sessions sem ${column}`);
+    }
+
+    const receiptColumns = db.prepare('PRAGMA table_info(operation_receipts)').all().map(row => row.name);
+    for (const column of ['installation_id','operation_id','kind','execution_id','result_json','created_at','completed_at']) {
+      assert.ok(receiptColumns.includes(column), `operation_receipts sem ${column}`);
     }
 
     const rentalFks = db.prepare('PRAGMA foreign_key_list(rentals)').all().map(row => row.table);
