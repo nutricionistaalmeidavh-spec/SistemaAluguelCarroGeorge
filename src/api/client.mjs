@@ -66,6 +66,6 @@ export function createApiClient({baseUrl='',fetchImpl=globalThis.fetch,timeoutMs
     async createRental(data,{operationId}={}){const result=await request('/api/v1/rentals',{method:'POST',body:data,operationId});return result?.item??result?.result??null;},
     async payRental(rentalId,data,{operationId}={}){const result=await request(`/api/v1/rentals/${encodeURIComponent(rentalId)}/payments`,{method:'POST',body:data,operationId});return result?.item??result?.result??null;},
     async payInstallment(installmentId,data,{operationId}={}){const result=await request(`/api/v1/billing/installments/${encodeURIComponent(installmentId)}/payments`,{method:'POST',body:data,operationId});return result?.item??result?.result??null;},
-    async uploadAttachment(id,{entityType,entityId,mimeType,body:fileBody,fileName=''}={}){const result=await request(`/api/v1/attachments/${encodeURIComponent(id)}?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`,{method:'PUT',body:fileBody,headers:{'content-type':mimeType,'x-file-name':fileName}});return result?.item??null;}
+    async uploadAttachment(id,{entityType,entityId,mimeType,body:fileBody,fileName=''}={}, {operationId}={}){const result=await request(`/api/v1/attachments/${encodeURIComponent(id)}?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`,{method:'PUT',body:fileBody,headers:{'content-type':mimeType,'x-file-name':fileName},operationId});return result?.item??null;}
   });
 }
