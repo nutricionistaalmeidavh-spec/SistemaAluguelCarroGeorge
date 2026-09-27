@@ -18,15 +18,15 @@ test('canonical migrations create the relational schema with critical foreign ke
   const db = new DatabaseSync(':memory:');
   try {
     const result = applyMigrations(db, migrationsDir);
-    assert.deepEqual(result.applied, ['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql']);
-    assert.equal(result.version, 4);
+    assert.deepEqual(result.applied, ['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql','0005_auth_sessions.sql']);
+    assert.equal(result.version, 5);
 
     const names = tableNames(db);
     for (const name of [
       'installations','devices','users','customers','vehicles','rentals','rental_payments',
       'expenses','ledger','inspections','inspection_items','maintenance','contract_templates',
       'issued_contracts','billing_plans','billing_installments','collection_actions','audit_log',
-      'sync_changes','sync_cursors','attachments','schema_migrations'
+      'sync_changes','sync_cursors','attachments','sessions','schema_migrations'
     ]) assert.ok(names.has(name), `tabela ausente: ${name}`);
 
     const customerColumns = db.prepare('PRAGMA table_info(customers)').all().map(row => row.name);
@@ -39,11 +39,19 @@ test('canonical migrations create the relational schema with critical foreign ke
       assert.ok(attachmentColumns.includes(column), `attachments sem ${column}`);
     }
 
+    const sessionColumns = db.prepare('PRAGMA table_info(sessions)').all().map(row => row.name);
+    for (const column of ['id','installation_id','user_id','token_hash','device_id','user_agent_hash','created_at','last_seen_at','expires_at','revoked_at']) {
+      assert.ok(sessionColumns.includes(column), `sessions sem ${column}`);
+    }
+
     const rentalFks = db.prepare('PRAGMA foreign_key_list(rentals)').all().map(row => row.table);
     assert.ok(rentalFks.includes('customers'));
     assert.ok(rentalFks.includes('vehicles'));
     const attachmentFks = db.prepare('PRAGMA foreign_key_list(attachments)').all().map(row => row.table);
     assert.ok(attachmentFks.includes('installations'));
+    const sessionFks = db.prepare('PRAGMA foreign_key_list(sessions)').all().map(row => row.table);
+    assert.ok(sessionFks.includes('installations'));
+    assert.ok(sessionFks.includes('users'));
   } finally {
     db.close();
   }
@@ -54,9 +62,9 @@ test('migration runner is idempotent', () => {
   try {
     const first = applyMigrations(db, migrationsDir);
     const second = applyMigrations(db, migrationsDir);
-    assert.equal(first.applied.length, 4);
-    assert.deepEqual(second, { applied:[], version:4 });
-    assert.equal(db.prepare('SELECT COUNT(*) AS total FROM schema_migrations').get().total, 4);
+    assert.equal(first.applied.length, 5);
+    assert.deepEqual(second, { applied:[], version:5 });
+    assert.equal(db.prepare('SELECT COUNT(*) AS total FROM schema_migrations').get().total, 5);
   } finally {
     db.close();
   }
