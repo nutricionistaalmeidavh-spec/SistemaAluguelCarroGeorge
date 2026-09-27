@@ -11,6 +11,9 @@ export const DEFAULT_INSPECTION_ITEMS=[
   ['photos','Fotos do veículo anexadas']
 ];
 
+const PHOTO_MIME_TYPES=new Set(['image/jpeg','image/png','image/webp']);
+const PHOTO_MAX_BYTES=2_500_000;
+
 function inspection(snapshot,id){const found=snapshot.inspections.find(item=>item.id===id);if(!found)throw new Error('Vistoria não encontrada.');return found;}
 
 export function createInspection(input,{rentalId,kind='checkout'}={},actorId){
@@ -42,14 +45,18 @@ export function setInspectionItem(input,inspectionId,itemId,patch={},actorId){
   return snapshot;
 }
 
-export function addInspectionPhoto(input,inspectionId,{name='foto.jpg',type='image/jpeg',dataUrl}={},actorId){
+export function addInspectionPhoto(input,inspectionId,{attachmentId,name='foto.jpg',mimeType='image/jpeg',sizeBytes,sha256}={},actorId){
   const snapshot=ensureP1Snapshot(input);const current=inspection(snapshot,inspectionId);
-  if(typeof dataUrl!=='string'||!/^data:image\/(jpeg|jpg|png|webp);base64,/i.test(dataUrl))throw new Error('Foto inválida.');
-  if(dataUrl.length>2_500_000)throw new Error('Foto excede o limite de 2,5 MB em base64.');
+  const attachment=String(attachmentId??'').trim();if(!attachment)throw new Error('Attachment da foto é obrigatório.');
+  const mime=String(mimeType??'').toLowerCase();if(!PHOTO_MIME_TYPES.has(mime))throw new Error('Formato de foto inválido.');
+  const size=Number(sizeBytes);if(!Number.isFinite(size)||size<=0)throw new Error('Tamanho da foto inválido.');
+  if(size>PHOTO_MAX_BYTES)throw new Error('Foto excede o limite de tamanho de 2,5 MB.');
+  const checksum=String(sha256??'').toLowerCase();if(!/^[a-f0-9]{64}$/.test(checksum))throw new Error('SHA-256 da foto inválido.');
   if(current.photos.length>=12)throw new Error('Limite de 12 fotos por vistoria.');
-  current.photos.push({id:nextEntityId('FOTO',current.photos),name,type,dataUrl,createdAt:new Date().toISOString()});
+  if(current.photos.some(photo=>photo.attachmentId===attachment))throw new Error('Esta foto já foi anexada à vistoria.');
+  current.photos.push({id:nextEntityId('FOTO',current.photos),attachmentId:attachment,name:String(name||'foto.jpg'),mimeType:mime,sizeBytes:size,sha256:checksum,createdAt:new Date().toISOString()});
   const photosItem=current.checklist.find(item=>item.id==='photos');if(photosItem){photosItem.done=true;photosItem.evidence=`${current.photos.length} foto(s)`;}
-  appendAudit(snapshot,{actorId,action:'inspection.photo_added',entityType:'inspection',entityId:inspectionId,details:{count:current.photos.length}});
+  appendAudit(snapshot,{actorId,action:'inspection.photo_added',entityType:'inspection',entityId:inspectionId,details:{count:current.photos.length,attachmentId:attachment}});
   return snapshot;
 }
 
