@@ -9,6 +9,7 @@ import migrationRunner from '../electron/migration-runner.cjs';
 
 const { applyMigrations } = migrationRunner;
 const migrationsDir = fileURLToPath(new URL('../db/migrations/', import.meta.url));
+const migrationFiles=['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql','0005_auth_sessions.sql','0006_auth_policy.sql'];
 
 function tableNames(db) {
   return new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
@@ -18,8 +19,8 @@ test('canonical migrations create the relational schema with critical foreign ke
   const db = new DatabaseSync(':memory:');
   try {
     const result = applyMigrations(db, migrationsDir);
-    assert.deepEqual(result.applied, ['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql','0005_auth_sessions.sql']);
-    assert.equal(result.version, 5);
+    assert.deepEqual(result.applied, migrationFiles);
+    assert.equal(result.version, migrationFiles.length);
 
     const names = tableNames(db);
     for (const name of [
@@ -28,6 +29,9 @@ test('canonical migrations create the relational schema with critical foreign ke
       'issued_contracts','billing_plans','billing_installments','collection_actions','audit_log',
       'sync_changes','sync_cursors','attachments','sessions','schema_migrations'
     ]) assert.ok(names.has(name), `tabela ausente: ${name}`);
+
+    const userColumns = db.prepare('PRAGMA table_info(users)').all().map(row => row.name);
+    assert.ok(userColumns.includes('must_change_password'),'users sem must_change_password');
 
     const customerColumns = db.prepare('PRAGMA table_info(customers)').all().map(row => row.name);
     for (const column of ['id','installation_id','created_at','updated_at','version','updated_by_device','deleted_at']) {
@@ -62,9 +66,9 @@ test('migration runner is idempotent', () => {
   try {
     const first = applyMigrations(db, migrationsDir);
     const second = applyMigrations(db, migrationsDir);
-    assert.equal(first.applied.length, 5);
-    assert.deepEqual(second, { applied:[], version:5 });
-    assert.equal(db.prepare('SELECT COUNT(*) AS total FROM schema_migrations').get().total, 5);
+    assert.equal(first.applied.length, migrationFiles.length);
+    assert.deepEqual(second, { applied:[], version:migrationFiles.length });
+    assert.equal(db.prepare('SELECT COUNT(*) AS total FROM schema_migrations').get().total, migrationFiles.length);
   } finally {
     db.close();
   }
