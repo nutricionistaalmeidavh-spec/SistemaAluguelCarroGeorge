@@ -6,6 +6,7 @@ import { createPwaSqliteStore } from './pwa-sqlite.mjs';
 import { createAttachmentStore } from './attachment-store.mjs';
 import { createCacheStore } from './cache-store.mjs';
 import { createCloudRepository } from './cloud-repository.mjs';
+import { createOutbox } from '../sync/outbox.mjs';
 
 export const STORE_KEY='app:snapshot:v3';
 
@@ -33,12 +34,13 @@ export function isCloudRuntime(documentRef=globalThis.document){
   return String(documentRef?.querySelector?.('meta[name="locadora-runtime"]')?.getAttribute?.('content')??'').toLowerCase()==='cloud';
 }
 
-export async function createCloudRuntimeRepository({store=null,baseUrl='',fetchImpl=globalThis.fetch,maxRetries=1,retryDelayMs=250}={}){
+export async function createCloudRuntimeRepository({store=null,baseUrl='',fetchImpl=globalThis.fetch,maxRetries=1,retryDelayMs=250,outbox=null}={}){
   const backing=store??await createPwaSqliteStore();
   const cache=createCacheStore({store:backing});
+  const durableOutbox=outbox??createOutbox(backing);
   const api=createApiClient({baseUrl,fetchImpl,maxRetries,retryDelayMs,onUnauthorized:()=>cache.clearSession()});
-  const cloud=createCloudRepository({api,cache});
-  return Object.freeze({...cloud,api,kv:backing});
+  const cloud=createCloudRepository({api,cache,outbox:durableOutbox});
+  return Object.freeze({...cloud,api,kv:backing,outbox:durableOutbox});
 }
 
 export async function createRepository({onPersistenceError=()=>{}}={}){
