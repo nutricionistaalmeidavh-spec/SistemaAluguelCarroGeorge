@@ -1,8 +1,11 @@
 import { createEmptySnapshot, migrateLegacySnapshot } from '../domain/rental.mjs';
 import { ensureCommercialSnapshot } from '../domain/commercial.mjs';
 import { syncMaintenanceAvailability } from '../domain/maintenance.mjs';
+import { createApiClient } from '../api/client.mjs';
 import { createPwaSqliteStore } from './pwa-sqlite.mjs';
 import { createAttachmentStore } from './attachment-store.mjs';
+import { createCacheStore } from './cache-store.mjs';
+import { createCloudRepository } from './cloud-repository.mjs';
 
 export const STORE_KEY='app:snapshot:v3';
 
@@ -24,6 +27,18 @@ async function createDesktopStore(){
     remove:(key)=>bridge.dbRemove(String(key)),
     flush:async()=>true
   });
+}
+
+export function isCloudRuntime(documentRef=globalThis.document){
+  return String(documentRef?.querySelector?.('meta[name="locadora-runtime"]')?.getAttribute?.('content')??'').toLowerCase()==='cloud';
+}
+
+export async function createCloudRuntimeRepository({store=null,baseUrl='',fetchImpl=globalThis.fetch,maxRetries=1,retryDelayMs=250}={}){
+  const backing=store??await createPwaSqliteStore();
+  const cache=createCacheStore({store:backing});
+  const api=createApiClient({baseUrl,fetchImpl,maxRetries,retryDelayMs,onUnauthorized:()=>cache.clearSession()});
+  const cloud=createCloudRepository({api,cache});
+  return Object.freeze({...cloud,api,kv:backing});
 }
 
 export async function createRepository({onPersistenceError=()=>{}}={}){
@@ -68,4 +83,9 @@ export async function createRepository({onPersistenceError=()=>{}}={}){
     async reset(){cache=normalize(null);await storage.remove(STORE_KEY);await storage.set(STORE_KEY,JSON.stringify(cache));return cache;},
     kv
   });
+}
+
+export async function createRuntimeRepository(options={}){
+  if(options.mode==='cloud'||(options.mode==null&&isCloudRuntime(options.documentRef)))return createCloudRuntimeRepository(options);
+  return createRepository(options);
 }
