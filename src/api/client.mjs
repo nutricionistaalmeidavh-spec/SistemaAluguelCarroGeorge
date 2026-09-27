@@ -30,7 +30,7 @@ export function createApiClient({baseUrl='',fetchImpl=globalThis.fetch,timeoutMs
         requestHeaders.set('content-type','application/json');payload=JSON.stringify(body);
       }
       try{
-        const response=await fetchImpl(url,{method:verb,headers:requestHeaders,body:payload,credentials:'include',signal:signal??controller?.signal});
+        const response=await fetchImpl(url,{method:verb,headers:requestHeaders,body:payload,credentials:'include',signal:signal??controller?.signal,cache:'no-store'});
         let data=null;
         if(response.status!==204&&response.status!==205){
           if(isJson(response)){try{data=await response.json();}catch(error){throw new ApiError('invalid_json_response',{status:response.status,code:'invalid_response',cause:error});}}
@@ -55,6 +55,7 @@ export function createApiClient({baseUrl='',fetchImpl=globalThis.fetch,timeoutMs
     request,
     async health(){return request('/api/v1/health');},
     async login(input){return request('/api/v1/auth/login',{method:'POST',body:input});},
+    async firstAccess(input){return request('/api/v1/auth/first-access',{method:'POST',body:input});},
     async logout(){return request('/api/v1/auth/logout',{method:'POST'});},
     async session(){return request('/api/v1/auth/me');},
     async list(resource){const result=await request(`/api/v1/${encodeURIComponent(resource)}`);return result?.items??[];},
@@ -62,9 +63,9 @@ export function createApiClient({baseUrl='',fetchImpl=globalThis.fetch,timeoutMs
     async create(resource,data,{operationId}={}){const result=await request(`/api/v1/${encodeURIComponent(resource)}`,{method:'POST',body:data,operationId});return result?.item??null;},
     async update(resource,id,data,{expectedVersion,operationId}={}){const result=await request(`/api/v1/${encodeURIComponent(resource)}/${encodeURIComponent(id)}`,{method:'PATCH',body:{data,expectedVersion},operationId});return result?.item??null;},
     async remove(resource,id,{expectedVersion,operationId}={}){await request(`/api/v1/${encodeURIComponent(resource)}/${encodeURIComponent(id)}?expectedVersion=${encodeURIComponent(expectedVersion)}`,{method:'DELETE',operationId});return true;},
-    async createRental(data,{operationId}={}){const result=await request('/api/v1/rentals',{method:'POST',body:data,operationId});return result?.item??null;},
-    async payRental(rentalId,data,{operationId}={}){const result=await request(`/api/v1/rentals/${encodeURIComponent(rentalId)}/payments`,{method:'POST',body:data,operationId});return result?.item??null;},
-    async payInstallment(installmentId,data,{operationId}={}){const result=await request(`/api/v1/billing/installments/${encodeURIComponent(installmentId)}/payments`,{method:'POST',body:data,operationId});return result?.item??null;},
+    async createRental(data,{operationId}={}){const result=await request('/api/v1/rentals',{method:'POST',body:data,operationId});return result?.item??result?.result??null;},
+    async payRental(rentalId,data,{operationId}={}){const result=await request(`/api/v1/rentals/${encodeURIComponent(rentalId)}/payments`,{method:'POST',body:data,operationId});return result?.item??result?.result??null;},
+    async payInstallment(installmentId,data,{operationId}={}){const result=await request(`/api/v1/billing/installments/${encodeURIComponent(installmentId)}/payments`,{method:'POST',body:data,operationId});return result?.item??result?.result??null;},
     async uploadAttachment(id,{entityType,entityId,mimeType,body:fileBody,fileName=''}={}){const result=await request(`/api/v1/attachments/${encodeURIComponent(id)}?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`,{method:'PUT',body:fileBody,headers:{'content-type':mimeType,'x-file-name':fileName}});return result?.item??null;}
   });
 }
