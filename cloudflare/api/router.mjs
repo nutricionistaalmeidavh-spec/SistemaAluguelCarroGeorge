@@ -1,4 +1,5 @@
 import { API_PREFIX } from '../config.mjs';
+import { canCloud } from '../auth/permissions.mjs';
 import { getResourceDefinition } from './resource-map.mjs';
 import { createD1Repository } from '../db/d1-repository.mjs';
 
@@ -11,10 +12,7 @@ const JSON_HEADERS=Object.freeze({
 const MAX_JSON_BYTES=1_000_000;
 
 function json(body,status=200,headers={}){return new Response(JSON.stringify(body),{status,headers:{...JSON_HEADERS,...headers}});}
-function clean(row){
-  if(!row||typeof row!=='object')return row;
-  const value={...row};delete value.installation_id;delete value.password_hash;delete value.deleted_at;return value;
-}
+function clean(row){if(!row||typeof row!=='object')return row;const value={...row};delete value.installation_id;delete value.password_hash;delete value.deleted_at;return value;}
 function authContext(value){return value?.installationId&&value?.userId?value:null;}
 function methodAllowed(def,item,method){return (item?def.itemMethods:def.collectionMethods).includes(method);}
 function allow(def,item){return (item?def.itemMethods:def.collectionMethods).join(', ');}
@@ -37,25 +35,24 @@ export async function routeApi(request,env,_ctx,{auth=null}={}){
   if(!env?.DB?.prepare)return json({ok:false,error:'database_unavailable'},503);
   const method=request.method.toUpperCase();
   if(!methodAllowed(def,Boolean(entityId),method))return json({ok:false,error:'method_not_allowed'},405,{allow:allow(def,Boolean(entityId))});
+  const permission=method==='GET'?def.readPermission:def.writePermission;
+  if(!permission||!canCloud(session,permission))return json({ok:false,error:'forbidden'},403);
   const repo=createD1Repository(env.DB,session.installationId);
   try{
     if(method==='GET'&&!entityId){const items=await repo.list(resource);return json({ok:true,items:items.map(clean)});}
     if(method==='GET'&&entityId){const item=await repo.get(resource,entityId);return item?json({ok:true,item:clean(item)}):json({ok:false,error:'not_found'},404);}
     if(method==='POST'&&!entityId){
-      if(session.role!=='admin')return json({ok:false,error:'forbidden'},403);
-      const body=await readJson(request),id=validId(body.id)?String(body.id):generatedId(resource);
-      const item=await repo.insert(resource,id,body,{deviceId:body.deviceId??null});
+      const input=await readJson(request),id=validId(input.id)?String(input.id):generatedId(resource);
+      const item=await repo.insert(resource,id,input,{deviceId:session.deviceId??input.deviceId??null});
       return json({ok:true,item:clean(item)},201,{location:`${API_PREFIX}/${resource}/${encodeURIComponent(id)}`});
     }
     if(method==='PATCH'&&entityId){
-      if(session.role!=='admin')return json({ok:false,error:'forbidden'},403);
-      const body=await readJson(request),item=await repo.update(resource,entityId,body.data??body,body.expectedVersion,{deviceId:body.deviceId??null});
+      const input=await readJson(request),item=await repo.update(resource,entityId,input.data??input,input.expectedVersion,{deviceId:session.deviceId??input.deviceId??null});
       return item?json({ok:true,item:clean(item)}):json({ok:false,error:'version_conflict'},409);
     }
     if(method==='DELETE'&&entityId){
-      if(session.role!=='admin')return json({ok:false,error:'forbidden'},403);
       const expectedVersion=Number(request.headers.get('if-match-version')??url.searchParams.get('expectedVersion'));
-      const removed=await repo.softDelete(resource,entityId,expectedVersion,{deviceId:request.headers.get('x-device-id')});
+      const removed=await repo.softDelete(resource,entityId,expectedVersion,{deviceId:session.deviceId??request.headers.get('x-device-id')});
       return removed?new Response(null,{status:204,headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}}):json({ok:false,error:'version_conflict'},409);
     }
     return json({ok:false,error:'method_not_allowed'},405,{allow:allow(def,Boolean(entityId))});
