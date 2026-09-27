@@ -15,23 +15,29 @@ test('build Windows usa identidade exclusiva do George', async()=>{
   assert.equal(pkg.build.nsis.uninstallDisplayName,'Sistema Locadora George');
 });
 
-test('desktop usa AppData e SQLite exclusivos do George', async()=>{
+test('desktop usa AppData, AUMID e SQLite exclusivos do George', async()=>{
   const source=await text('electron/main.cjs');
   assert.match(source,/Sistema Locadora George/);
+  assert.match(source,/com\.artisys\.locadora\.george/);
+  assert.match(source,/app\.setAppUserModelId/);
   assert.match(source,/app\.setPath\('userData'/);
   assert.match(source,/locadora-george\.sqlite/);
   assert.doesNotMatch(source,/path\.join\(userData,'locadora\.sqlite'\)/);
 });
 
-test('PWA usa armazenamento e cache exclusivos do George', async()=>{
+test('PWA usa identidade, armazenamento e cache exclusivos do George', async()=>{
   const storage=await text('src/storage/pwa-sqlite.mjs');
   const sw=await text('sw.js');
   const manifest=JSON.parse(await text('manifest.webmanifest'));
+  const index=await text('index.html');
   assert.match(storage,/DB_FILE='locadora-george\.sqlite'/);
   assert.match(storage,/IDB_NAME='artisys-locadora-george-web'/);
-  assert.match(sw,/artisys-locadora-george-/);
+  assert.match(sw,/CACHE_PREFIX='artisys-locadora-george-'/);
+  assert.match(sw,/key\.startsWith\(CACHE_PREFIX\)&&key!==CACHE/);
+  assert.equal(manifest.id,'artisys-locadora-george');
   assert.equal(manifest.name,'Sistema Locadora George');
   assert.equal(manifest.short_name,'Locadora George');
+  assert.match(index,/<title>Sistema Locadora George<\/title>/);
 });
 
 test('workflow publica artefato George sem confundir com o produto base', async()=>{
