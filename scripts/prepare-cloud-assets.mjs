@@ -1,0 +1,19 @@
+import { cp, mkdir, readdir, rm } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root=dirname(dirname(fileURLToPath(import.meta.url)));
+const output=join(root,'.cloudflare','public');
+const files=['index.html','styles.css','styles-p1.css','styles-p2.css','manifest.webmanifest','sw.js'];
+const directories=['src','assets',join('vendor','sqlite')];
+
+await rm(output,{recursive:true,force:true});
+await mkdir(output,{recursive:true});
+for(const file of files)await cp(join(root,file),join(output,file));
+for(const directory of directories){
+  const source=join(root,directory);
+  try{await readdir(source);}catch{continue;}
+  await mkdir(join(output,directory),{recursive:true});
+  await cp(source,join(output,directory),{recursive:true});
+}
+console.log(`Cloud PWA assets preparados em ${output}`);
