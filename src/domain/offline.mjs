@@ -2,6 +2,8 @@ function clone(value){return value==null?value:(typeof structuredClone==='functi
 function iso(value){const date=new Date(value??Date.now());if(Number.isNaN(date.getTime()))throw new TypeError('Data inválida.');return date.toISOString();}
 function idFor(snapshot){const stamp=String(snapshot?.updatedAt??Date.now()).replace(/\D/g,'').slice(0,17)||String(Date.now());return `OFF-${stamp}`;}
 
+export const OFFLINE_OPERATION_STATES=Object.freeze(['pending','sending','synced','conflict','failed']);
+
 export function createOfflineState(input={}){
   return {
     dirty:Boolean(input.dirty),
@@ -35,3 +37,9 @@ export function markOfflineSynced(state,options={}){
 }
 
 export function pendingCount(state){return createOfflineState(state).pending.length;}
+
+export function summarizeOfflineOperations(items=[]){
+  const counts={pending:0,sending:0,synced:0,conflict:0,failed:0};
+  for(const item of Array.isArray(items)?items:[]){const status=OFFLINE_OPERATION_STATES.includes(item?.status)?item.status:'failed';counts[status]++;}
+  return Object.freeze({total:Object.values(counts).reduce((sum,value)=>sum+value,0),...counts,needsSync:counts.pending+counts.sending+counts.failed,blocked:counts.conflict});
+}
