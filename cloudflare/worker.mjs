@@ -1,4 +1,5 @@
 import { API_PREFIX, publicHealth } from './config.mjs';
+import { routeApi } from './api/router.mjs';
 
 const JSON_HEADERS=Object.freeze({
   'content-type':'application/json; charset=utf-8',
@@ -12,14 +13,14 @@ function json(body,status=200,headers={}){
 }
 
 export default {
-  async fetch(request,env){
+  async fetch(request,env,ctx){
     const url=new URL(request.url);
     if(url.pathname===`${API_PREFIX}/health`){
       if(request.method!=='GET'&&request.method!=='HEAD')return json({ok:false,error:'method_not_allowed'},405,{allow:'GET, HEAD'});
       const body=publicHealth();
       return request.method==='HEAD'?new Response(null,{status:200,headers:JSON_HEADERS}):json(body);
     }
-    if(url.pathname.startsWith(`${API_PREFIX}/`))return json({ok:false,error:'not_found'},404);
+    if(url.pathname.startsWith(`${API_PREFIX}/`))return routeApi(request,env,ctx);
     if(env?.ASSETS?.fetch)return env.ASSETS.fetch(request);
     return json({ok:false,error:'assets_unavailable'},503);
   }
