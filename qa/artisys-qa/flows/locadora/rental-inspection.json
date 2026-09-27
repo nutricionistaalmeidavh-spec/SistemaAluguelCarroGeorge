@@ -1,0 +1,138 @@
+{
+  "name": "rental-inspection",
+  "steps": [
+    {
+      "action": "fill",
+      "label": "Usuário",
+      "value": "admin"
+    },
+    {
+      "action": "fill",
+      "label": "Senha",
+      "valueFromEnv": "LOCADORA_QA_ADMIN_PASSWORD"
+    },
+    {
+      "action": "click",
+      "role": "button",
+      "name": "Entrar"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"clientes\"]"
+    },
+    {
+      "action": "click",
+      "selector": "#new-customer"
+    },
+    {
+      "action": "fill",
+      "selector": "#customer-form [name=\"name\"]",
+      "value": "Cliente QA"
+    },
+    {
+      "action": "fill",
+      "selector": "#customer-form [name=\"document\"]",
+      "value": "12345678909"
+    },
+    {
+      "action": "fill",
+      "selector": "#customer-form [name=\"phone\"]",
+      "value": "16999990000"
+    },
+    {
+      "action": "click",
+      "selector": "#customer-form button.primary"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"frota\"]"
+    },
+    {
+      "action": "click",
+      "selector": "#new-vehicle"
+    },
+    {
+      "action": "fill",
+      "selector": "#vehicle-form [name=\"model\"]",
+      "value": "Veículo QA"
+    },
+    {
+      "action": "fill",
+      "selector": "#vehicle-form [name=\"plate\"]",
+      "value": "QAT1A23"
+    },
+    {
+      "action": "fill",
+      "selector": "#vehicle-form [name=\"year\"]",
+      "value": "2025"
+    },
+    {
+      "action": "fill",
+      "selector": "#vehicle-form [name=\"dailyRate\"]",
+      "value": "150"
+    },
+    {
+      "action": "click",
+      "selector": "#vehicle-form button.primary"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"reservas\"]"
+    },
+    {
+      "action": "click",
+      "selector": "#new-rental"
+    },
+    {
+      "action": "fill",
+      "selector": "#rental-form [name=\"pickupAt\"]",
+      "value": "2030-01-10T10:00"
+    },
+    {
+      "action": "fill",
+      "selector": "#rental-form [name=\"returnAt\"]",
+      "value": "2030-01-12T10:00"
+    },
+    {
+      "action": "fill",
+      "selector": "#rental-form [name=\"dailyRate\"]",
+      "value": "150"
+    },
+    {
+      "action": "click",
+      "selector": "#rental-form button.primary"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"reservas\"]"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "#new-rental"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"vistorias\"]"
+    },
+    {
+      "action": "expectText",
+      "selector": "#view",
+      "expected": "Vistorias"
+    },
+    {
+      "action": "expectText",
+      "selector": "#view",
+      "expected": "Retirada"
+    },
+    {
+      "action": "expectText",
+      "selector": "#view",
+      "expected": "Devolução"
+    },
+    {
+      "action": "screenshot",
+      "name": "rental-inspection-workflow",
+      "fullPage": true
+    }
+  ]
+}

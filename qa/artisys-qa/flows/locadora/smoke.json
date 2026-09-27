@@ -1,0 +1,48 @@
+{
+  "name": "locadora-smoke",
+  "steps": [
+    {
+      "action": "expectVisible",
+      "selector": "#login",
+      "name": "login-visible"
+    },
+    {
+      "action": "fill",
+      "label": "Usuário",
+      "value": "admin"
+    },
+    {
+      "action": "fill",
+      "label": "Senha",
+      "valueFromEnv": "LOCADORA_QA_ADMIN_PASSWORD"
+    },
+    {
+      "action": "click",
+      "role": "button",
+      "name": "Entrar"
+    },
+    {
+      "action": "waitFor",
+      "selector": ".session",
+      "timeoutMs": 30000
+    },
+    {
+      "action": "expectText",
+      "selector": ".session",
+      "expected": "Administrador"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "[data-nav=\"reservas\"]"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "[data-nav=\"frota\"]"
+    },
+    {
+      "action": "screenshot",
+      "name": "dashboard-admin",
+      "fullPage": true
+    }
+  ]
+}

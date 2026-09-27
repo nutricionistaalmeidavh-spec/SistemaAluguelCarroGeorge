@@ -1,0 +1,11 @@
+{
+  "name":"Sistema Locadora",
+  "short_name":"Locadora",
+  "description":"Gestão local de reservas, frota, vistorias, manutenção e financeiro.",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#f4f5f7",
+  "theme_color":"#151922",
+  "icons":[{"src":"./assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

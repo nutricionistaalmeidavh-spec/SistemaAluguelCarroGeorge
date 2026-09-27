@@ -1,0 +1,34 @@
+{
+  "name": "sync-screen",
+  "steps": [
+    {
+      "action": "fill",
+      "label": "Usuário",
+      "value": "admin"
+    },
+    {
+      "action": "fill",
+      "label": "Senha",
+      "valueFromEnv": "LOCADORA_QA_ADMIN_PASSWORD"
+    },
+    {
+      "action": "click",
+      "role": "button",
+      "name": "Entrar"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"sync\"]"
+    },
+    {
+      "action": "expectText",
+      "selector": "#view",
+      "expected": "PC"
+    },
+    {
+      "action": "screenshot",
+      "name": "sync-screen",
+      "fullPage": true
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "name": "admin-navigation",
+  "steps": [
+    {
+      "action": "fill",
+      "label": "Usuário",
+      "value": "admin"
+    },
+    {
+      "action": "fill",
+      "label": "Senha",
+      "valueFromEnv": "LOCADORA_QA_ADMIN_PASSWORD"
+    },
+    {
+      "action": "click",
+      "role": "button",
+      "name": "Entrar"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"clientes\"]"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "#new-customer"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"frota\"]"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "#new-vehicle"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"backup\"]"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "#backup-create"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "label.file-button"
+    },
+    {
+      "action": "waitFor",
+      "selector": "#backup-file",
+      "state": "attached"
+    }
+  ]
+}

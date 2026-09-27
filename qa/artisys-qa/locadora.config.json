@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "systemId": "locadora-carros",
+  "mode": "electron",
+  "defaultEnvironment": "local",
+  "defaultFlow": "smoke",
+  "defaultViewport": "desktop",
+  "capture": {
+    "video": true,
+    "screenshotEachStep": true,
+    "fps": 4
+  },
+  "electron": {
+    "entry": "../..",
+    "env": {
+      "ELECTRON_ENABLE_LOGGING": "1"
+    },
+    "args": [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage"
+    ],
+    "isolatedUserDataEnv": "LOCADORA_E2E_USER_DATA"
+  },
+  "environments": {
+    "local": {}
+  },
+  "flows": {
+    "smoke": "flows/locadora/smoke.json",
+    "admin-navigation": "flows/locadora/admin-navigation.json",
+    "rental-inspection": "flows/locadora/rental-inspection.json",
+    "daily-billing": "flows/locadora/daily-billing.json",
+    "backup-restore": "flows/locadora/backup-restore.json",
+    "fleet-permissions": "flows/locadora/fleet-permissions.json",
+    "sync-screen": "flows/locadora/sync-screen.json"
+  }
+}

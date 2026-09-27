@@ -1,0 +1,33 @@
+{
+  "name": "fleet-permissions-admin-baseline",
+  "steps": [
+    {
+      "action": "fill",
+      "label": "Usuário",
+      "value": "admin"
+    },
+    {
+      "action": "fill",
+      "label": "Senha",
+      "valueFromEnv": "LOCADORA_QA_ADMIN_PASSWORD"
+    },
+    {
+      "action": "click",
+      "role": "button",
+      "name": "Entrar"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"frota\"]"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "#new-vehicle"
+    },
+    {
+      "action": "expectText",
+      "selector": "#view",
+      "expected": "Frota"
+    }
+  ]
+}

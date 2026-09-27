@@ -1,0 +1,42 @@
+{
+  "name": "backup-restore-ui",
+  "steps": [
+    {
+      "action": "fill",
+      "label": "Usuário",
+      "value": "admin"
+    },
+    {
+      "action": "fill",
+      "label": "Senha",
+      "valueFromEnv": "LOCADORA_QA_ADMIN_PASSWORD"
+    },
+    {
+      "action": "click",
+      "role": "button",
+      "name": "Entrar"
+    },
+    {
+      "action": "click",
+      "selector": "[data-nav=\"backup\"]"
+    },
+    {
+      "action": "expectText",
+      "selector": "#view",
+      "expected": "Backup verificável"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "#backup-create"
+    },
+    {
+      "action": "expectVisible",
+      "selector": "label.file-button"
+    },
+    {
+      "action": "waitFor",
+      "selector": "#backup-file",
+      "state": "attached"
+    }
+  ]
+}

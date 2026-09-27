@@ -1,0 +1,45 @@
+const http=require('node:http');
+const path=require('node:path');
+const fs=require('node:fs');
+const fsp=require('node:fs/promises');
+const { pathToFileURL }=require('node:url');
+
+const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.webmanifest':'application/manifest+json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon','.wasm':'application/wasm'};
+const STATE_KEY='sync:server-state';
+const emptyState=()=>({revision:0,snapshot:null,updatedAt:null,lastDeviceId:null});
+
+function sendJson(res,status,payload){res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','access-control-allow-origin':'*','access-control-allow-headers':'content-type,x-locadora-sync-token','access-control-allow-methods':'GET,POST,OPTIONS'});res.end(JSON.stringify(payload));}
+function readJson(req,limit=40*1024*1024){return new Promise((resolve,reject)=>{let size=0;const chunks=[];req.on('data',chunk=>{size+=chunk.length;if(size>limit){reject(Object.assign(new Error('Payload muito grande.'),{statusCode:413}));req.destroy();return;}chunks.push(chunk);});req.on('end',()=>{try{resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}'));}catch{reject(Object.assign(new Error('JSON inválido.'),{statusCode:400}));}});req.on('error',reject);});}
+function safeFile(rootDir,pathname){let decoded;try{decoded=decodeURIComponent(pathname);}catch{return null;}const relative=decoded==='/'?'index.html':decoded.replace(/^\/+/, '');const file=path.resolve(rootDir,relative),root=path.resolve(rootDir)+path.sep;if(file!==path.resolve(rootDir,'index.html')&&!file.startsWith(root))return null;return file;}
+async function serveStatic(rootDir,pathname,res){let file=safeFile(rootDir,pathname);if(!file){res.writeHead(403);res.end('Forbidden');return;}try{let stat=await fsp.stat(file);if(stat.isDirectory()){file=path.join(file,'index.html');stat=await fsp.stat(file);}const ext=path.extname(file).toLowerCase();res.writeHead(200,{'content-type':MIME[ext]||'application/octet-stream','cache-control':ext==='.html'?'no-cache':'public, max-age=3600'});fs.createReadStream(file).pipe(res);}catch(error){if(error?.code==='ENOENT'){res.writeHead(404,{'content-type':'text/plain; charset=utf-8'});res.end('Not found');return;}res.writeHead(500);res.end('Internal error');}}
+
+async function startSyncServer({host='0.0.0.0',port=4174,token,rootDir,store}={}){
+  if(!token)throw new TypeError('token is required');if(!rootDir)throw new TypeError('rootDir is required');if(!store?.getJson||!store?.setJson)throw new TypeError('SQLite store is required');
+  const { exchangeSnapshots }=await import(pathToFileURL(path.join(__dirname,'..','src','domain','sync.mjs')).href);
+  let state=store.getJson(STATE_KEY,emptyState())||emptyState();
+  const server=http.createServer(async(req,res)=>{
+    try{
+      if(req.method==='OPTIONS'){res.writeHead(204,{'access-control-allow-origin':'*','access-control-allow-headers':'content-type,x-locadora-sync-token','access-control-allow-methods':'GET,POST,OPTIONS'});res.end();return;}
+      const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);
+      if(url.pathname==='/api/sync/status'){
+        if(req.headers['x-locadora-sync-token']!==token)return sendJson(res,401,{error:'unauthorized'});
+        return sendJson(res,200,{ok:true,revision:state.revision,hasSnapshot:Boolean(state.snapshot),updatedAt:state.updatedAt});
+      }
+      if(url.pathname==='/api/sync/exchange'&&req.method==='POST'){
+        if(req.headers['x-locadora-sync-token']!==token)return sendJson(res,401,{error:'unauthorized'});
+        const body=await readJson(req);
+        const result=exchangeSnapshots({serverRevision:state.revision,serverSnapshot:state.snapshot,baseRevision:body.baseRevision,clientSnapshot:body.snapshot});
+        if(['push','merge'].includes(result.action)){
+          state={revision:result.nextRevision,snapshot:result.snapshot,updatedAt:new Date().toISOString(),lastDeviceId:String(body.deviceId||'')};
+          store.setJson(STATE_KEY,state);
+        }
+        return sendJson(res,200,{ok:true,action:result.action,conflict:result.conflict,revision:state.revision,snapshot:result.snapshot,serverUpdatedAt:state.updatedAt});
+      }
+      return serveStatic(rootDir,url.pathname,res);
+    }catch(error){sendJson(res,error?.statusCode||500,{error:error?.message||'internal-error'});}
+  });
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,resolve);});
+  const address=server.address();
+  return {port:typeof address==='object'&&address?address.port:port,close:()=>new Promise(resolve=>server.close(()=>resolve())),getState:()=>({...state})};
+}
+module.exports={startSyncServer};
