@@ -1,5 +1,6 @@
 import { API_PREFIX, publicHealth } from './config.mjs';
 import { handleAuthRoute } from './api/auth-routes.mjs';
+import { handleRentalRoute, isRentalOperationRoute } from './api/rental-routes.mjs';
 import { resolveSession } from './auth/session.mjs';
 import { routeApi } from './api/router.mjs';
 
@@ -24,7 +25,9 @@ export default {
       return handleAuthRoute(request,env,ctx,{auth});
     }
     if(url.pathname.startsWith(`${API_PREFIX}/`)){
-      const auth=await resolveSession(request,env);return routeApi(request,env,ctx,{auth});
+      const auth=await resolveSession(request,env);
+      if(isRentalOperationRoute(request))return handleRentalRoute(request,env,ctx,{auth});
+      return routeApi(request,env,ctx,{auth});
     }
     if(env?.ASSETS?.fetch)return env.ASSETS.fetch(request);
     return json({ok:false,error:'assets_unavailable'},503);
