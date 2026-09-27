@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createApiClient, ApiError } from '../src/api/client.mjs';
 import { createCacheStore } from '../src/storage/cache-store.mjs';
 import { createCloudRepository } from '../src/storage/cloud-repository.mjs';
+import { createRuntimeRepository, isCloudRuntime } from '../src/storage/repository.mjs';
 
 function memoryKv(){
   const values=new Map();
@@ -79,4 +80,16 @@ test('401 limpa sessão cacheada e sinaliza login obrigatório',async()=>{
   const repo=createCloudRepository({api,cache});
   await assert.rejects(()=>repo.query('customers'),error=>error?.status===401);
   assert.equal(await cache.getSession(),null);assert.equal(repo.status().requiresLogin,true);
+});
+
+test('runtime publicado seleciona cloud repository sem exigir bridge Electron',async()=>{
+  const documentRef={querySelector(selector){return selector==='meta[name="locadora-runtime"]'?{getAttribute(){return 'cloud';}}:null;}};
+  assert.equal(isCloudRuntime(documentRef),true);
+  const kv=memoryKv(),calls=[];
+  const fetchImpl=async(url,options)=>{calls.push({url,options});return jsonResponse({ok:true,items:[]});};
+  const repo=await createRuntimeRepository({documentRef,store:kv,baseUrl:'https://george.example.test',fetchImpl,maxRetries:0});
+  assert.equal(repo.kind,'cloud');
+  await repo.query('customers');
+  assert.equal(calls[0].url,'https://george.example.test/api/v1/customers');
+  assert.equal(calls[0].options.credentials,'include');
 });
