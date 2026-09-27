@@ -32,6 +32,11 @@ const definitions={
     table:'maintenance',readPermission:'maintenance.read',writePermission:'maintenance.write',
     read:[...commonRead,'vehicle_id AS vehicleId','type','due_at AS dueAt','due_mileage AS dueMileage','notes','cost_estimate AS costEstimate','status','started_at AS startedAt','completed_at AS completedAt','cost'],
     writable:{},required:[],collectionMethods:['GET'],itemMethods:['GET']
+  },
+  billingInstallments:{
+    table:'billing_installments',readPermission:'billing.read',writePermission:'billing.write',
+    read:[...commonRead,'plan_id AS planId','rental_id AS rentalId','customer_id AS customerId','vehicle_id AS vehicleId','sequence','due_at AS dueAt','amount','paid_amount AS paidAmount','status','fine_percent AS finePercent','interest_monthly_percent AS interestMonthlyPercent','sync_conflict AS syncConflict'],
+    writable:{},required:[],collectionMethods:['GET'],itemMethods:['GET']
   }
 };
 
