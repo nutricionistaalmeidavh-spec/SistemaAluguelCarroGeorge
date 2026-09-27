@@ -1,5 +1,6 @@
 import { auditStatement } from './audit.mjs';
 import { abandonOperation, beginOperationStatement, completeOperationStatement, findOperationReceipt, operationIdentity } from './operation-receipts.mjs';
+import { appendChangeStatement } from '../sync/change-log.mjs';
 
 const DAY=86_400_000;
 const MAX_DATE='9999-12-31T23:59:59.999Z';
@@ -24,8 +25,8 @@ export async function createRentalOperation(context,input,operationId){
   const vehicle=await db.prepare("SELECT id, availability FROM vehicles WHERE installation_id = ? AND id = ? AND deleted_at IS NULL LIMIT 1").bind(installationId,vehicleId).first();
   if(!vehicle||vehicle.availability==='manutencao')fail('vehicle_unavailable');
   const period=parsePeriod(input),dailyRate=round(input.dailyRate);if(!(dailyRate>0))fail('invalid_daily_rate');
-  const total=round(period.days*dailyRate),now=new Date().toISOString(),executionId=`EXE-${crypto.randomUUID()}`,rentalId=`LOC-${crypto.randomUUID()}`,ledgerId=`FIN-${crypto.randomUUID()}`;
-  const result={id:rentalId,customerId,vehicleId,pickupAt:period.pickupAt,returnAt:period.returnAt,periodMode:period.periodMode,status:'reserva',dailyRate,days:period.days,total,paymentStatus:'aberto'};
+  const total=round(period.days*dailyRate),now=new Date().toISOString(),executionId=`EXE-${crypto.randomUUID()}`,rentalId=`LOC-${crypto.randomUUID()}`,ledgerId=`FIN-${crypto.randomUUID()}`,deviceId=auth.deviceId??null;
+  const result={id:rentalId,customerId,vehicleId,pickupAt:period.pickupAt,returnAt:period.returnAt,periodMode:period.periodMode,status:'reserva',priority:input.priority??'Media',notes:input.notes??'',dailyRate,days:period.days,total,billingMode:'total',paymentStatus:'aberto',version:1,createdAt:now,updatedAt:now,updatedByDevice:deviceId};
   const receipt=beginOperationStatement(db,{installationId,operationId:op,kind:'rental.create',executionId,createdAt:now});
   const insertRental=db.prepare(`INSERT INTO rentals
     (id, installation_id, vehicle_id, customer_id, attendant_id, pickup_at, return_at, period_mode, status, priority, notes, daily_rate, days, total, billing_mode, payment_status, created_at, updated_at, version, updated_by_device)
@@ -36,16 +37,17 @@ export async function createRentalOperation(context,input,operationId){
         WHERE r.installation_id = ? AND r.vehicle_id = ? AND r.deleted_at IS NULL AND r.status <> 'devolucao'
           AND r.pickup_at < ? AND COALESCE(r.continuous_closed_at, r.return_at, ?) > ?
       )`)
-    .bind(rentalId,installationId,vehicleId,customerId,input.attendantId??userId,period.pickupAt,period.returnAt,period.periodMode,input.priority??'Media',input.notes??'',dailyRate,period.days,total,now,now,auth.deviceId??null,installationId,op,executionId,installationId,vehicleId,period.endForConflict,MAX_DATE,period.pickupAt);
+    .bind(rentalId,installationId,vehicleId,customerId,input.attendantId??userId,period.pickupAt,period.returnAt,period.periodMode,result.priority,result.notes,dailyRate,period.days,total,now,now,deviceId,installationId,op,executionId,installationId,vehicleId,period.endForConflict,MAX_DATE,period.pickupAt);
   const insertLedger=db.prepare(`INSERT INTO ledger
     (id, installation_id, kind, billing_purpose, rental_id, vehicle_id, description, amount, paid_amount, status, due_at, created_at, updated_at, version, updated_by_device)
     SELECT ?, ?, 'receivable', 'rental', id, vehicle_id, ?, total, 0, 'open', pickup_at, ?, ?, 1, ? FROM rentals
     WHERE installation_id = ? AND id = ? AND deleted_at IS NULL`)
-    .bind(ledgerId,installationId,`Locação ${rentalId}`,now,now,auth.deviceId??null,installationId,rentalId);
-  const audit=auditStatement(db,{installationId,actorId:userId,action:'rental.created',entityType:'rental',entityId:rentalId,details:{vehicleId,customerId,pickupAt:period.pickupAt,returnAt:period.returnAt,total},deviceId:auth.deviceId??null,at:now,guardSql:'EXISTS (SELECT 1 FROM rentals WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)',guardParams:[installationId,rentalId]});
+    .bind(ledgerId,installationId,`Locação ${rentalId}`,now,now,deviceId,installationId,rentalId);
+  const change=appendChangeStatement(db,{operationId:op,installationId,deviceId,entityType:'rental',entityId:rentalId,operation:'create',entityVersion:1,payload:result,createdAt:now,guardSql:'EXISTS (SELECT 1 FROM rentals WHERE installation_id = ? AND id = ? AND version = 1 AND deleted_at IS NULL)',guardParams:[installationId,rentalId]});
+  const audit=auditStatement(db,{installationId,actorId:userId,action:'rental.created',entityType:'rental',entityId:rentalId,details:{vehicleId,customerId,pickupAt:period.pickupAt,returnAt:period.returnAt,total},deviceId,at:now,guardSql:'EXISTS (SELECT 1 FROM rentals WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)',guardParams:[installationId,rentalId]});
   const complete=completeOperationStatement(db,{installationId,operationId:op,executionId,result,completedAt:now,guardSql:'EXISTS (SELECT 1 FROM rentals WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)',guardParams:[installationId,rentalId]});
-  const batch=await db.batch([receipt,insertRental,insertLedger,audit,complete]);
-  if(Number(batch?.[1]?.meta?.changes??0)!==1){
+  const batch=await db.batch([receipt,insertRental,insertLedger,change,audit,complete]);
+  if(Number(batch?.[1]?.meta?.changes??0)!==1||Number(batch?.[3]?.meta?.changes??0)!==1){
     const concurrent=await findOperationReceipt(db,installationId,op);if(concurrent?.result)return{result:concurrent.result,change:null,replayed:true};
     await abandonOperation(db,{installationId,operationId:op,executionId});
     fail('reservation_conflict','Conflito de reserva: o veículo já está comprometido neste período.');
