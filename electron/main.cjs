@@ -54,7 +54,21 @@ async function loadRelationalCodecs(){
   const root=app.getAppPath();
   const toModule=await import(pathToFileURL(path.join(root,'src','migration','snapshot-to-relational.mjs')).href);
   const fromModule=await import(pathToFileURL(path.join(root,'src','migration','relational-to-snapshot.mjs')).href);
-  return {snapshotToRelational:toModule.snapshotToRelational,relationalToSnapshot:fromModule.relationalToSnapshot};
+  const attachmentsModule=await import(pathToFileURL(path.join(root,'src','migration','legacy-attachments.mjs')).href);
+  return {
+    snapshotToRelational:toModule.snapshotToRelational,
+    relationalToSnapshot:fromModule.relationalToSnapshot,
+    migrateLegacyAttachments:attachmentsModule.migrateLegacyAttachments
+  };
+}
+
+async function migrateLegacyAttachmentFiles(migrateLegacyAttachments){
+  if(relationalStore.isRelationalEmpty())return{migrated:0,errors:[]};
+  const current=relationalStore.loadSnapshot();
+  const result=await migrateLegacyAttachments(current,attachmentStore,{actorId:'SYSTEM'});
+  if(result.migrated>0)relationalStore.saveSnapshot(result.snapshot);
+  if(result.errors.length)console.warn(`[locadora] ${result.errors.length} foto(s) legada(s) não puderam ser migradas; dados base64 foram preservados.`);
+  return result;
 }
 
 async function startLanSync(){
@@ -63,10 +77,11 @@ async function startLanSync(){
   const migrationsDir=path.join(app.getAppPath(),'db','migrations');
   if(!fs.existsSync(databasePath)){const seed=new SqliteStore(databasePath);seed.close();}
   const codecs=await loadRelationalCodecs();
-  const relationalOptions={installationId:INSTALLATION_ID,deviceId:DESKTOP_DEVICE_ID,migrationsDir,...codecs};
+  const relationalOptions={installationId:INSTALLATION_ID,deviceId:DESKTOP_DEVICE_ID,migrationsDir,snapshotToRelational:codecs.snapshotToRelational,relationalToSnapshot:codecs.relationalToSnapshot};
   upgradeLegacyDatabase({databasePath,userData,...relationalOptions});
   relationalStore=RelationalStore.open(databasePath,relationalOptions);
   attachmentStore=AttachmentStore.open({databasePath,rootDir:path.join(userData,'attachments'),migrationsDir,installationId:INSTALLATION_ID,deviceId:DESKTOP_DEVICE_ID});
+  await migrateLegacyAttachmentFiles(codecs.migrateLegacyAttachments);
   store=new SqliteStore(databasePath);
   migrateLegacySidecars(userData);
   const token=tokenFromSqlite(),rootDir=app.getAppPath();
