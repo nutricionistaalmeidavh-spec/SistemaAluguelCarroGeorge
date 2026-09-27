@@ -1,0 +1,4 @@
+'use strict';
+const {replicateAttachment}=require('./cycle.cjs');
+async function syncAttachments({client,attachmentStore,attachments=[]}={}){let downloaded=0,skipped=0,corrupted=0,missing=0;for(const meta of attachments){try{const current=attachmentStore?.verify?.(meta.id);if(current?.ok&&String(current.actualSha256)===String(meta.sha256)){skipped++;continue;}await replicateAttachment(client,{putAttachment:(m,b)=>attachmentStore.put({id:m.id,entityType:m.entityType||m.entity_type,entityId:m.entityId||m.entity_id,mimeType:m.mimeType||m.mime_type,bytes:b,createdBy:m.createdBy||null})},meta);downloaded++;}catch(error){if(error?.status===404)missing++;else if(error?.code==='attachment_checksum_mismatch')corrupted++;else throw error;}}return{downloaded,skipped,corrupted,missing};}
+exports.syncAttachments=syncAttachments;
