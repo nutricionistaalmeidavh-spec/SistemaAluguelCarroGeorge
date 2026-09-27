@@ -24,7 +24,7 @@ async function sync(page){
  await expect(page.locator('.toast').filter({hasText:'Sincronização concluída.'}).last()).toBeVisible();
 }
 test('backup: export, alter, restore, synchronize and reload preserve restored data',async()=>{
- const ctx=await launchLocadora();const errors=[];ctx.page.on('pageerror',e=>errors.push(e.message));
+ const ctx=await launchLocadora({legacySnapshotSync:true});const errors=[];ctx.page.on('pageerror',e=>errors.push(e.message));
  try{
   const p=ctx.page;await login(p);await company(p,'Empresa do backup');await sync(p);
   await p.locator('[data-nav="backup"]').click();

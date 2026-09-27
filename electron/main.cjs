@@ -84,11 +84,11 @@ async function startLanSync(){
   await migrateLegacyAttachmentFiles(codecs.migrateLegacyAttachments);
   store=new SqliteStore(databasePath);
   migrateLegacySidecars(userData);
-  const token=tokenFromSqlite(),rootDir=app.getAppPath();
-  try{syncServer=await startSyncServer({host:'0.0.0.0',port:4174,token,rootDir,store});}
-  catch(error){if(error?.code!=='EADDRINUSE')throw error;syncServer=await startSyncServer({host:'0.0.0.0',port:0,token,rootDir,store});}
+  const token=tokenFromSqlite(),rootDir=app.getAppPath(),legacySnapshotSync=process.env.LOCADORA_LEGACY_SNAPSHOT_SYNC==='1';
+  try{syncServer=await startSyncServer({host:'0.0.0.0',port:4174,token,rootDir,store,legacySnapshotSync});}
+  catch(error){if(error?.code!=='EADDRINUSE')throw error;syncServer=await startSyncServer({host:'0.0.0.0',port:0,token,rootDir,store,legacySnapshotSync});}
   const urls=lanAddresses().map(address=>`http://${address}:${syncServer.port}`);
-  syncInfo={available:true,port:syncServer.port,token,localUrl:`http://127.0.0.1:${syncServer.port}`,urls,pairingUrls:urls.map(url=>`${url}/?pair=${encodeURIComponent(token)}`),database:databasePath,attachments:path.join(userData,'attachments')};
+  syncInfo={available:true,legacySnapshotSync,port:syncServer.port,token,localUrl:`http://127.0.0.1:${syncServer.port}`,urls,pairingUrls:urls.map(url=>`${url}/?pair=${encodeURIComponent(token)}`),database:databasePath,attachments:path.join(userData,'attachments')};
 }
 
 function registerIpc(){
