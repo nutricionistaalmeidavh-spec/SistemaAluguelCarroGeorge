@@ -15,12 +15,14 @@ test('build Windows usa identidade exclusiva do George', async()=>{
   assert.equal(pkg.build.nsis.uninstallDisplayName,'Sistema Locadora George');
 });
 
-test('desktop usa AppData, AUMID e SQLite exclusivos do George', async()=>{
+test('desktop usa AppData, sessionData, AUMID e SQLite exclusivos do George', async()=>{
   const source=await text('electron/main.cjs');
   assert.match(source,/Sistema Locadora George/);
   assert.match(source,/com\.artisys\.locadora\.george/);
   assert.match(source,/app\.setAppUserModelId/);
   assert.match(source,/app\.setPath\('userData'/);
+  assert.match(source,/app\.setPath\('sessionData'/);
+  assert.match(source,/mkdirSync\([^\n]+recursive:true/);
   assert.match(source,/locadora-george\.sqlite/);
   assert.doesNotMatch(source,/path\.join\(userData,'locadora\.sqlite'\)/);
 });
