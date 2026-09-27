@@ -15,12 +15,14 @@ function publicChange(row){return row?{
   createdAt:row.created_at
 }:null;}
 
-export function appendChangeStatement(db,{operationId,installationId,deviceId=null,entityType,entityId,operation,baseVersion=null,entityVersion=null,payload=null,createdAt=new Date().toISOString()}={}){
+export function appendChangeStatement(db,{operationId,installationId,deviceId=null,entityType,entityId,operation,baseVersion=null,entityVersion=null,payload=null,createdAt=new Date().toISOString(),guardSql=null,guardParams=[]}={}){
   if(!db?.prepare)throw new TypeError('database_unavailable');
-  return db.prepare(`INSERT INTO sync_changes
-    (operation_id, installation_id, device_id, entity_type, entity_id, operation, base_version, entity_version, payload_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(String(operationId),String(installationId),deviceId==null?null:String(deviceId),String(entityType),String(entityId),String(operation),baseVersion==null?null:Number(baseVersion),entityVersion==null?null:Number(entityVersion),payload==null?null:JSON.stringify(payload),String(createdAt));
+  const columns='operation_id, installation_id, device_id, entity_type, entity_id, operation, base_version, entity_version, payload_json, created_at';
+  const values=[String(operationId),String(installationId),deviceId==null?null:String(deviceId),String(entityType),String(entityId),String(operation),baseVersion==null?null:Number(baseVersion),entityVersion==null?null:Number(entityVersion),payload==null?null:JSON.stringify(payload),String(createdAt)];
+  if(guardSql){
+    return db.prepare(`INSERT INTO sync_changes (${columns}) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${guardSql}`).bind(...values,...guardParams);
+  }
+  return db.prepare(`INSERT INTO sync_changes (${columns}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(...values);
 }
 
 export async function findChangeByOperationId(db,installationId,operationId){
