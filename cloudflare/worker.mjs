@@ -3,6 +3,7 @@ import { handleAttachmentRoute, isAttachmentRoute } from './api/attachment-route
 import { handleAuthRoute } from './api/auth-routes.mjs';
 import { handleBillingRoute, isBillingOperationRoute } from './api/billing-routes.mjs';
 import { handleRentalRoute, isRentalOperationRoute } from './api/rental-routes.mjs';
+import { handleSyncRoute, isSyncRoute } from './api/sync-routes.mjs';
 import { resolveSession } from './auth/session.mjs';
 import { routeApi } from './api/router.mjs';
 
@@ -28,6 +29,7 @@ export default {
     }
     if(url.pathname.startsWith(`${API_PREFIX}/`)){
       const auth=await resolveSession(request,env);
+      if(isSyncRoute(request))return handleSyncRoute(request,env,ctx,{auth});
       if(isAttachmentRoute(request))return handleAttachmentRoute(request,env,ctx,{auth});
       if(isRentalOperationRoute(request))return handleRentalRoute(request,env,ctx,{auth});
       if(isBillingOperationRoute(request))return handleBillingRoute(request,env,ctx,{auth});
