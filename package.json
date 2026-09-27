@@ -1,5 +1,5 @@
 {
-  "name": "locadoracarros",
+  "name": "locadoracarros-george",
   "version": "0.7.0",
   "private": true,
   "type": "module",
@@ -30,9 +30,10 @@
     "sql.js": "1.14.2"
   },
   "build": {
-    "appId": "com.artisys.locadora",
-    "productName": "Sistema Locadora",
-    "artifactName": "Sistema-Locadora-Setup-${version}.${ext}",
+    "appId": "com.artisys.locadora.george",
+    "productName": "Sistema Locadora George",
+    "executableName": "Sistema-Locadora-George",
+    "artifactName": "Sistema-Locadora-George-Setup-${version}.${ext}",
     "files": [
       "index.html",
       "styles.css",
@@ -63,7 +64,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sistema Locadora George",
+      "uninstallDisplayName": "Sistema Locadora George"
     }
   }
 }
