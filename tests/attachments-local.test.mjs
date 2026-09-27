@@ -4,14 +4,29 @@ import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 import attachmentModule from '../electron/attachment-store.cjs';
+import migrationRunner from '../electron/migration-runner.cjs';
 
 const { AttachmentStore } = attachmentModule;
+const { applyMigrations } = migrationRunner;
 const migrationsDir = fileURLToPath(new URL('../db/migrations/', import.meta.url));
+const INSTALLATION_ID='LOCADORA-GEORGE';
 
 function tempPaths(){
   const dir=mkdtempSync(join(tmpdir(),'locadora-attachments-'));
   return {dir,databasePath:join(dir,'locadora.sqlite'),rootDir:join(dir,'attachments')};
+}
+
+function seedInstallation(databasePath){
+  const db=new DatabaseSync(databasePath);
+  try{
+    db.exec('PRAGMA foreign_keys=ON;');
+    applyMigrations(db,migrationsDir);
+    const now='2026-09-27T12:00:00.000Z';
+    db.prepare(`INSERT INTO installations(id,name,created_at,updated_at,version,updated_by_device,deleted_at)
+      VALUES(?,?,?,?,?,?,?)`).run(INSTALLATION_ID,'Locadora George',now,now,1,'TEST-DEVICE',null);
+  }finally{db.close();}
 }
 
 const input={
@@ -26,7 +41,8 @@ const input={
 test('AttachmentStore grava arquivo atomicamente, persiste metadata e reabre com SHA válido',()=>{
   const paths=tempPaths();let store;
   try{
-    store=AttachmentStore.open({...paths,migrationsDir,installationId:'LOCADORA-GEORGE'});
+    seedInstallation(paths.databasePath);
+    store=AttachmentStore.open({...paths,migrationsDir,installationId:INSTALLATION_ID});
     const metadata=store.put(input);
     assert.equal(metadata.id,input.id);
     assert.equal(metadata.entityType,input.entityType);
@@ -43,7 +59,7 @@ test('AttachmentStore grava arquivo atomicamente, persiste metadata e reabre com
     });
     store.close();
 
-    store=AttachmentStore.open({...paths,migrationsDir,installationId:'LOCADORA-GEORGE'});
+    store=AttachmentStore.open({...paths,migrationsDir,installationId:INSTALLATION_ID});
     assert.deepEqual(store.get(input.id),input.bytes);
     assert.equal(store.listByEntity('inspection','INS-001').length,1);
   }finally{
@@ -55,7 +71,8 @@ test('AttachmentStore grava arquivo atomicamente, persiste metadata e reabre com
 test('AttachmentStore detecta arquivo corrompido sem alterar metadata esperada',()=>{
   const paths=tempPaths();let store;
   try{
-    store=AttachmentStore.open({...paths,migrationsDir,installationId:'LOCADORA-GEORGE'});
+    seedInstallation(paths.databasePath);
+    store=AttachmentStore.open({...paths,migrationsDir,installationId:INSTALLATION_ID});
     const metadata=store.put(input);
     writeFileSync(join(paths.rootDir,metadata.localPath),Buffer.from('conteudo-corrompido'));
     const verification=store.verify(input.id);
@@ -72,7 +89,8 @@ test('AttachmentStore detecta arquivo corrompido sem alterar metadata esperada',
 test('AttachmentStore remove metadata e arquivo juntos',()=>{
   const paths=tempPaths();let store;
   try{
-    store=AttachmentStore.open({...paths,migrationsDir,installationId:'LOCADORA-GEORGE'});
+    seedInstallation(paths.databasePath);
+    store=AttachmentStore.open({...paths,migrationsDir,installationId:INSTALLATION_ID});
     const metadata=store.put(input);
     const absolute=join(paths.rootDir,metadata.localPath);
     assert.equal(store.remove(input.id),true);
