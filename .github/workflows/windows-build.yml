@@ -1,0 +1,35 @@
+name: Locadora Windows Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      LOCADORA_QA_ADMIN_PASSWORD: '1234'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify source
+        run: npm run verify
+      - name: Code coverage
+        run: npm run coverage
+      - name: Build Windows installer
+        run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sistema-Locadora-Windows
+          path: release/Sistema-Locadora-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 14
