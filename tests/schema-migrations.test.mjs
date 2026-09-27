@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, cpSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import migrationRunner from '../electron/migration-runner.cjs';
@@ -18,15 +18,15 @@ test('canonical migrations create the relational schema with critical foreign ke
   const db = new DatabaseSync(':memory:');
   try {
     const result = applyMigrations(db, migrationsDir);
-    assert.deepEqual(result.applied, ['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql']);
-    assert.equal(result.version, 3);
+    assert.deepEqual(result.applied, ['0001_core.sql','0002_commercial.sql','0003_sync_metadata.sql','0004_attachments.sql']);
+    assert.equal(result.version, 4);
 
     const names = tableNames(db);
     for (const name of [
       'installations','devices','users','customers','vehicles','rentals','rental_payments',
       'expenses','ledger','inspections','inspection_items','maintenance','contract_templates',
       'issued_contracts','billing_plans','billing_installments','collection_actions','audit_log',
-      'sync_changes','sync_cursors','schema_migrations'
+      'sync_changes','sync_cursors','attachments','schema_migrations'
     ]) assert.ok(names.has(name), `tabela ausente: ${name}`);
 
     const customerColumns = db.prepare('PRAGMA table_info(customers)').all().map(row => row.name);
@@ -34,9 +34,16 @@ test('canonical migrations create the relational schema with critical foreign ke
       assert.ok(customerColumns.includes(column), `customers sem ${column}`);
     }
 
+    const attachmentColumns = db.prepare('PRAGMA table_info(attachments)').all().map(row => row.name);
+    for (const column of ['id','installation_id','entity_type','entity_id','local_path','mime_type','size_bytes','sha256','created_at','created_by','status','updated_at','version','updated_by_device','deleted_at']) {
+      assert.ok(attachmentColumns.includes(column), `attachments sem ${column}`);
+    }
+
     const rentalFks = db.prepare('PRAGMA foreign_key_list(rentals)').all().map(row => row.table);
     assert.ok(rentalFks.includes('customers'));
     assert.ok(rentalFks.includes('vehicles'));
+    const attachmentFks = db.prepare('PRAGMA foreign_key_list(attachments)').all().map(row => row.table);
+    assert.ok(attachmentFks.includes('installations'));
   } finally {
     db.close();
   }
@@ -47,9 +54,9 @@ test('migration runner is idempotent', () => {
   try {
     const first = applyMigrations(db, migrationsDir);
     const second = applyMigrations(db, migrationsDir);
-    assert.equal(first.applied.length, 3);
-    assert.deepEqual(second, { applied:[], version:3 });
-    assert.equal(db.prepare('SELECT COUNT(*) AS total FROM schema_migrations').get().total, 3);
+    assert.equal(first.applied.length, 4);
+    assert.deepEqual(second, { applied:[], version:4 });
+    assert.equal(db.prepare('SELECT COUNT(*) AS total FROM schema_migrations').get().total, 4);
   } finally {
     db.close();
   }
