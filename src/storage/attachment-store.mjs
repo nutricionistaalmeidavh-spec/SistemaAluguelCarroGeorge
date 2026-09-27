@@ -21,18 +21,22 @@ function openDb(){
   });
 }
 async function createBrowserStore(){
-  const db=await openDb();
-  const request=(mode,fn)=>new Promise((resolve,reject)=>{
-    const tx=db.transaction(STORE,mode),store=tx.objectStore(STORE),req=fn(store);
-    req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error||new Error('Falha no armazenamento de attachment.'));
-    tx.onabort=()=>reject(tx.error||new Error('Transação de attachment cancelada.'));
-  });
+  let dbPromise=null;
+  const database=()=>dbPromise??=openDb();
+  const request=async(mode,fn)=>{
+    const db=await database();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(STORE,mode),store=tx.objectStore(STORE),req=fn(store);
+      req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error||new Error('Falha no armazenamento de attachment.'));
+      tx.onabort=()=>reject(tx.error||new Error('Transação de attachment cancelada.'));
+    });
+  };
   return Object.freeze({
     kind:'indexeddb-attachments',
     async put(input){
       const bytes=await blobBytes(input.bytes);const record={...input,bytes,createdAt:input.createdAt??new Date().toISOString()};
       await request('readwrite',store=>store.put(record));
-      return {id:record.id,entityType:record.entityType,entityId:record.entityId,mimeType:record.mimeType,sizeBytes:bytes.byteLength,createdAt:record.createdAt,status:'local-pending'};
+      return {id:record.id,entityType:record.entityType,entityId:record.entityId,name:record.name??null,mimeType:record.mimeType,sizeBytes:bytes.byteLength,sha256:record.sha256??null,createdAt:record.createdAt,status:'local-pending'};
     },
     async get(id){const record=await request('readonly',store=>store.get(String(id)));return record?.bytes??null;},
     async remove(id){await request('readwrite',store=>store.delete(String(id)));return true;},
@@ -40,7 +44,7 @@ async function createBrowserStore(){
       const all=await request('readonly',store=>store.getAll());
       return (all??[]).filter(item=>item.entityType===entityType&&item.entityId===entityId).map(({bytes,...metadata})=>({...metadata,sizeBytes:bytes?.byteLength??0,status:'local-pending'}));
     },
-    close(){db.close();}
+    close(){if(dbPromise)dbPromise.then(db=>db.close()).catch(()=>{});}
   });
 }
 
