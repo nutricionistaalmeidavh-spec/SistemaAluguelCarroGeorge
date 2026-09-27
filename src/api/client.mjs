@@ -1,4 +1,6 @@
 const DEFAULT_TIMEOUT_MS=15_000;
+const RESOURCE_ENTITY=Object.freeze({customers:'customer',vehicles:'vehicle'});
+const RESOURCE_PREFIX=Object.freeze({customers:'CUS',vehicles:'VEI'});
 
 export class ApiError extends Error{
   constructor(message,{status=0,code='api_error',details=null,cause=null}={}){
@@ -11,6 +13,9 @@ function normalizeBaseUrl(value){const text=String(value??'').trim();return text
 function resolveUrl(baseUrl,path){const text=String(path??'');if(/^https?:\/\//i.test(text))return text;if(baseUrl)return `${baseUrl}${text.startsWith('/')?'':'/'}${text}`;return text.startsWith('/')?text:`/${text}`;}
 function isJson(response){return /(?:^|\/)json(?:;|$)/i.test(response.headers.get('content-type')??'')||/application\/[^;]+\+json/i.test(response.headers.get('content-type')??'');}
 function retryable(method,operationId){return ['GET','HEAD','OPTIONS'].includes(method)||Boolean(operationId);}
+function syncIdentity(resource){const name=String(resource??''),entity=RESOURCE_ENTITY[name];if(!entity)throw new ApiError('unsupported_sync_resource',{status:400,code:'unsupported_sync_resource'});return{entity,prefix:RESOURCE_PREFIX[name]};}
+function generatedOperationId(){return `OP-${crypto.randomUUID()}`;}
+function generatedEntityId(prefix){return `${prefix}-${crypto.randomUUID()}`;}
 
 export function createApiClient({baseUrl='',fetchImpl=globalThis.fetch,timeoutMs=DEFAULT_TIMEOUT_MS,maxRetries=1,retryDelayMs=150,onUnauthorized=()=>{}}={}){
   if(typeof fetchImpl!=='function')throw new TypeError('fetchImpl_required');
@@ -51,6 +56,12 @@ export function createApiClient({baseUrl='',fetchImpl=globalThis.fetch,timeoutMs
     }
   }
 
+  async function syncOperation(operation){
+    const opId=String(operation.operationId||generatedOperationId()),payload={...operation,operationId:opId};
+    const response=await request('/api/v1/sync/operations',{method:'POST',body:{operations:[payload]},operationId:opId});
+    return response?.results?.[0]??null;
+  }
+
   return Object.freeze({
     request,
     async health(){return request('/api/v1/health');},
@@ -60,9 +71,9 @@ export function createApiClient({baseUrl='',fetchImpl=globalThis.fetch,timeoutMs
     async session(){return request('/api/v1/auth/me');},
     async list(resource){const result=await request(`/api/v1/${encodeURIComponent(resource)}`);return result?.items??[];},
     async get(resource,id){const result=await request(`/api/v1/${encodeURIComponent(resource)}/${encodeURIComponent(id)}`);return result?.item??null;},
-    async create(resource,data,{operationId}={}){const result=await request(`/api/v1/${encodeURIComponent(resource)}`,{method:'POST',body:data,operationId});return result?.item??null;},
-    async update(resource,id,data,{expectedVersion,operationId}={}){const result=await request(`/api/v1/${encodeURIComponent(resource)}/${encodeURIComponent(id)}`,{method:'PATCH',body:{data,expectedVersion},operationId});return result?.item??null;},
-    async remove(resource,id,{expectedVersion,operationId}={}){await request(`/api/v1/${encodeURIComponent(resource)}/${encodeURIComponent(id)}?expectedVersion=${encodeURIComponent(expectedVersion)}`,{method:'DELETE',operationId});return true;},
+    async create(resource,data,{operationId=null}={}){const {entity,prefix}=syncIdentity(resource),payload={...data,id:data?.id??generatedEntityId(prefix)},outcome=await syncOperation({operationId:operationId??generatedOperationId(),kind:`${entity}.create`,payload});return outcome?.item??null;},
+    async update(resource,id,data,{expectedVersion,operationId=null}={}){const {entity}=syncIdentity(resource),outcome=await syncOperation({operationId:operationId??generatedOperationId(),kind:`${entity}.update`,baseVersion:expectedVersion,payload:{id,data}});return outcome?.item??null;},
+    async remove(resource,id,{expectedVersion,operationId=null}={}){const {entity}=syncIdentity(resource);await syncOperation({operationId:operationId??generatedOperationId(),kind:`${entity}.delete`,baseVersion:expectedVersion,payload:{id}});return true;},
     async createRental(data,{operationId}={}){const result=await request('/api/v1/rentals',{method:'POST',body:data,operationId});return result?.item??result?.result??null;},
     async payRental(rentalId,data,{operationId}={}){const result=await request(`/api/v1/rentals/${encodeURIComponent(rentalId)}/payments`,{method:'POST',body:data,operationId});return result?.item??result?.result??null;},
     async payInstallment(installmentId,data,{operationId}={}){const result=await request(`/api/v1/billing/installments/${encodeURIComponent(installmentId)}/payments`,{method:'POST',body:data,operationId});return result?.item??result?.result??null;},
