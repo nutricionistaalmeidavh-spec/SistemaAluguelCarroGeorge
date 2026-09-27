@@ -13,10 +13,7 @@ import {
   createContractTemplate,
   issueContract
 } from '../../src/domain/commercial.mjs';
-import {
-  createInspection,
-  addInspectionPhoto
-} from '../../src/domain/inspection.mjs';
+import { createInspection } from '../../src/domain/inspection.mjs';
 import { scheduleMaintenance } from '../../src/domain/maintenance.mjs';
 
 const ACTOR = 'USR-001';
@@ -83,9 +80,17 @@ export async function buildLegacySnapshotFixture() {
 
   snapshot = createInspection(snapshot, { rentalId:totalRental.id, kind:'checkout' }, ACTOR);
   const inspection = snapshot.inspections[0];
-  snapshot = addInspectionPhoto(snapshot, inspection.id, {
-    name:'baseline.jpg', type:'image/jpeg', dataUrl:'data:image/jpeg;base64,AA=='
-  }, ACTOR);
+  // Esta fixture congela deliberadamente o formato histórico anterior ao AttachmentStore.
+  // Não use a API atual addInspectionPhoto aqui: o objetivo é testar a migração de dados reais legados.
+  inspection.photos.push({
+    id:'FOTO-LEGACY-001',
+    name:'baseline.jpg',
+    type:'image/jpeg',
+    dataUrl:'data:image/jpeg;base64,AA==',
+    createdAt:'2026-09-27T12:00:00.000Z'
+  });
+  const photosItem=inspection.checklist.find(item=>item.id==='photos');
+  if(photosItem){photosItem.done=true;photosItem.evidence='1 foto(s)';}
 
   snapshot = scheduleMaintenance(snapshot, {
     vehicleId:dailyVehicle.id,
