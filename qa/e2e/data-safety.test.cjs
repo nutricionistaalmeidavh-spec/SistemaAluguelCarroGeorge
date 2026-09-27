@@ -18,10 +18,15 @@ async function company(page,name){
  await expect(page.locator('.toast').filter({hasText:'Configurações salvas.'}).last()).toBeVisible();
 }
 async function sync(page){
- await page.locator('.toast').evaluateAll(nodes=>nodes.forEach(node=>node.remove()));
+ const info=await page.evaluate(()=>window.locadoraDesktop.getSyncInfo());
+ assert.equal(info?.legacySnapshotSync,true,'este cenário de rollback deve iniciar o Electron com compatibilidade de snapshot explícita');
  await page.locator('[data-nav="sync"]').click();
+ const enabled=page.locator('#sync-form input[name="enabled"]');if(!await enabled.isChecked())await enabled.check();
+ await page.locator('#sync-form button.primary').click();
+ await expect(page.locator('.toast').filter({hasText:'Configuração de sincronização salva.'}).last()).toBeVisible();
+ await page.locator('.toast').evaluateAll(nodes=>nodes.forEach(node=>node.remove()));
  await page.locator('#sync-now').click();
- await expect(page.locator('.toast').filter({hasText:'Sincronização concluída.'}).last()).toBeVisible();
+ await expect(page.locator('.toast').filter({hasText:'Sincronização concluída.'}).last()).toBeVisible({timeout:10000});
 }
 test('backup: export, alter, restore, synchronize and reload preserve restored data',async()=>{
  const ctx=await launchLocadora({legacySnapshotSync:true});const errors=[];ctx.page.on('pageerror',e=>errors.push(e.message));
