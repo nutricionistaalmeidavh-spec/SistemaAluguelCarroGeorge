@@ -28,7 +28,7 @@ class RelationalStore {
 
   transaction(fn) {
     if (typeof fn !== 'function') throw new TypeError('transaction exige função.');
-    this.db.exec('BEGIN IMMEDIATE;');
+    this.db.exec('BEGIN IMMEDIATE; PRAGMA defer_foreign_keys=ON;');
     try {
       const value = fn({ db:this.db, core:this.core, commercial:this.commercial, operations:this.operations });
       this.db.exec('COMMIT;');
