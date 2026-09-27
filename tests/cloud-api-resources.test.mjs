@@ -54,6 +54,6 @@ test('router lista customers dentro da instalação e rejeita métodos não perm
   let response=await routeApi(req('/api/v1/customers'),env,{}, {auth:authA});
   assert.equal(response.status,200);
   assert.deepEqual((await response.json()).items.map(row=>row.id),['C-A']);
-  response=await routeApi(req('/api/v1/customers',{method:'TRACE'}),env,{}, {auth:authA});
+  response=await routeApi(req('/api/v1/customers',{method:'PUT'}),env,{}, {auth:authA});
   assert.equal(response.status,405);
 });
