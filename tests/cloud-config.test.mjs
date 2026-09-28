@@ -26,6 +26,13 @@ test('Cloudflare config usa o Worker e os recursos reais de produção sem segre
   assert.doesNotMatch(serialized,/api[_-]?token|secret|password/i);
 });
 
+test('Previews de PR não herdam D1/R2 de produção',async()=>{
+  const config=await readJsonc('wrangler.jsonc');
+  assert.ok(config.previews&&typeof config.previews==='object');
+  assert.equal(config.previews.d1_databases,undefined);
+  assert.equal(config.previews.r2_buckets,undefined);
+});
+
 test('script de migrations locais usa o mesmo D1 declarado no Wrangler',async()=>{
   const config=await readJsonc('wrangler.jsonc');
   const script=await readFile(new URL('../scripts/cloud-migrations-local.mjs',import.meta.url),'utf8');
