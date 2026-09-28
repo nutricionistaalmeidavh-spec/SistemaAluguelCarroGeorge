@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { FakeD1 } from './helpers/fake-d1.mjs';
 import { ensureGeorgeAdmin } from '../cloudflare/auth/george-provision.mjs';
+import { handleAuthRoute } from '../cloudflare/api/auth-routes.mjs';
 
 const INSTALLATION_ID='LOCADORA-GEORGE';
 const GEORGE_EMAIL='georgedaut.adm@gmail.com';
@@ -17,6 +18,7 @@ test('login cloud fixa a instalação do George e mostra apenas e-mail e senha',
   assert.doesNotMatch(source,/name=["']installationId["']/);
   assert.match(source,/<label>E-mail<input name=["']username["']/);
   assert.doesNotMatch(source,/>Usuário<input name=["']username["']/);
+  assert.match(source,/\/api\/v1\/auth\/bootstrap/);
 });
 
 test('provisionamento cloud cria George como admin e desativa login admin legado',async()=>{
@@ -53,5 +55,20 @@ test('provisionamento não redefine a senha depois do primeiro acesso',async()=>
     assert.equal(user.password_hash,changedHash);
     assert.equal(Number(user.must_change_password),0);
     assert.equal(Number(db.sqlite.prepare('SELECT COUNT(*) AS n FROM users WHERE installation_id=? AND username=?').get(INSTALLATION_ID,GEORGE_EMAIL).n),1);
+  }finally{db.close();}
+});
+
+test('bootstrap de autenticação provisiona a conta sem exigir senha ou instalação do cliente',async()=>{
+  const db=new FakeD1();
+  try{
+    const request=new Request('https://example.test/api/v1/auth/bootstrap',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+    const response=await handleAuthRoute(request,{DB:db},{},{auth:null});
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{ok:true});
+    const user=db.sqlite.prepare('SELECT username,role,active,must_change_password FROM users WHERE installation_id=? AND username=?').get(INSTALLATION_ID,GEORGE_EMAIL);
+    assert.equal(user?.username,GEORGE_EMAIL);
+    assert.equal(user?.role,'admin');
+    assert.equal(Number(user?.active),1);
+    assert.equal(Number(user?.must_change_password),1);
   }finally{db.close();}
 });
