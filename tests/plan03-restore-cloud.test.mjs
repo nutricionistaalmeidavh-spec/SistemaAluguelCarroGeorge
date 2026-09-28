@@ -12,10 +12,10 @@ class FakeR2{
   async get(key){const value=this.objects.get(key);if(!value)return null;return{text:async()=>value.body,customMetadata:value.options?.customMetadata??{}};}
 }
 
-test('restore cloud substitui dados, sobe geração e invalida sessões/credenciais antigas',async()=>{
+test('restore cloud substitui dados, sobe geração, invalida auth antiga e registra auditoria',async()=>{
   const db=new FakeD1(),r2=new FakeR2();
   try{
-    const ids=seedOperationFixture(db),admin={installationId:ids.installationId,userId:ids.userId,role:'admin',active:true};
+    const ids=seedOperationFixture(db),admin={installationId:ids.installationId,userId:ids.userId,role:'admin',active:true,deviceId:'PHONE-ADMIN'};
     const backup=await writeCloudBackup({DB:db,ATTACHMENTS:r2},ids.installationId,new Date('2026-09-27T03:17:00.000Z'));
     await issueDeviceCredential(db,admin,{deviceId:'PHONE-OLD',name:'Celular antigo',kind:'mobile'});
     await createSessionRecord(db,{installationId:ids.installationId,userId:ids.userId,deviceId:'PHONE-OLD',userAgent:'restore-test'});
@@ -30,6 +30,9 @@ test('restore cloud substitui dados, sobe geração e invalida sessões/credenci
     assert.equal(db.scalar('SELECT name FROM customers WHERE id=?',ids.customerId),'Cliente Teste');
     assert.equal(db.scalar('SELECT COUNT(*) FROM device_credentials WHERE installation_id=?',ids.installationId),0);
     assert.equal(db.scalar('SELECT COUNT(*) FROM sessions WHERE installation_id=?',ids.installationId),0);
-    assert.equal(db.scalar("SELECT status FROM restore_records WHERE id=?",restored.restoreId),'complete');
+    assert.equal(db.scalar('SELECT status FROM restore_records WHERE id=?',restored.restoreId),'complete');
+    assert.equal(db.scalar("SELECT COUNT(*) FROM audit_log WHERE installation_id=? AND action='backup.restore'",ids.installationId),1);
+    const details=JSON.parse(db.sqlite.prepare("SELECT details_json FROM audit_log WHERE installation_id=? AND action='backup.restore' ORDER BY at DESC LIMIT 1").get(ids.installationId).details_json);
+    assert.equal(details.backupId,backup.id);assert.equal(details.fromGeneration,0);assert.equal(details.toGeneration,1);
   }finally{db.close();}
 });
