@@ -1,6 +1,7 @@
 import { API_PREFIX } from '../config.mjs';
 import { hashPassword, verifyPassword } from '../auth/password.mjs';
 import { buildSessionCookie, clearSessionCookie, createSessionRecord, readSessionToken, revokeSessionToken } from '../auth/session.mjs';
+import { ensureGeorgeAdmin, GEORGE_INSTALLATION_ID } from '../auth/george-provision.mjs';
 
 const JSON_HEADERS=Object.freeze({'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'});
 const MAX_BODY_BYTES=32_000;
@@ -20,6 +21,7 @@ export function createD1AuthService(env,request){
   const db=env?.DB;if(!db?.prepare)throw new Error('database_unavailable');
   return Object.freeze({
     async findUser(installationId,username){
+      if(String(installationId)===GEORGE_INSTALLATION_ID)await ensureGeorgeAdmin(db);
       return db.prepare(`SELECT id, installation_id, username, name, role, active, password_hash, must_change_password FROM users
         WHERE installation_id = ? AND lower(username) = lower(?) AND active = 1 AND deleted_at IS NULL LIMIT 1`).bind(String(installationId),String(username)).first();
     },
@@ -41,6 +43,11 @@ export async function handleAuthRoute(request,env,_ctx,{service=null,auth=null}=
   const url=new URL(request.url),base=`${API_PREFIX}/auth/`;if(!url.pathname.startsWith(base))return json({ok:false,error:'not_found'},404);
   const action=url.pathname.slice(base.length).replace(/\/$/,'');
   try{
+    if(action==='bootstrap'){
+      if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405,{allow:'POST'});
+      await ensureGeorgeAdmin(env?.DB);
+      return json({ok:true});
+    }
     if(action==='login'){
       if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405,{allow:'POST'});
       const input=await body(request),installationId=String(input.installationId??'').trim(),username=String(input.username??'').trim(),password=String(input.password??'');
