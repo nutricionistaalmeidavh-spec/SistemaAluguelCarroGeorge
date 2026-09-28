@@ -59,6 +59,23 @@ test('provisionamento não redefine a senha depois do primeiro acesso',async()=>
   }finally{db.close();}
 });
 
+test('provisionamento não reativa nem restaura conta do George revogada',async()=>{
+  const db=new FakeD1();
+  try{
+    await ensureGeorgeAdmin(db,{now:'2026-09-28T01:40:00.000Z'});
+    const revokedAt='2026-09-29T02:00:00.000Z',revokedHash='pbkdf2-sha256$310000$ffeeddccbbaa99887766554433221100$ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100';
+    db.sqlite.prepare('UPDATE users SET active=0,deleted_at=?,password_hash=?,must_change_password=0 WHERE installation_id=? AND username=?')
+      .run(revokedAt,revokedHash,INSTALLATION_ID,GEORGE_EMAIL);
+
+    await ensureGeorgeAdmin(db,{now:'2026-09-30T03:00:00.000Z'});
+    const user=db.sqlite.prepare('SELECT active,deleted_at,password_hash,must_change_password FROM users WHERE installation_id=? AND username=?').get(INSTALLATION_ID,GEORGE_EMAIL);
+    assert.equal(Number(user.active),0);
+    assert.equal(user.deleted_at,revokedAt);
+    assert.equal(user.password_hash,revokedHash);
+    assert.equal(Number(user.must_change_password),0);
+  }finally{db.close();}
+});
+
 test('bootstrap de autenticação provisiona a conta sem exigir senha ou instalação do cliente',async()=>{
   const db=new FakeD1();
   try{
