@@ -7,23 +7,46 @@ async function readJsonc(path){
   return JSON.parse(raw.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,''));
 }
 
-test('Cloudflare config declara Worker, assets públicos isolados, D1 e R2 sem segredos reais',async()=>{
+test('Cloudflare config usa o Worker e os recursos reais de produção sem segredos',async()=>{
   const config=await readJsonc('wrangler.jsonc');
+  assert.equal(config.name,'sistemaaluguelcarrogeorge');
   assert.equal(config.main,'cloudflare/worker.mjs');
   assert.equal(config.compatibility_date,'2026-09-27');
   assert.equal(config.assets?.directory,'.cloudflare/public');
   assert.equal(config.assets?.binding,'ASSETS');
   assert.equal(config.d1_databases?.length,1);
-  assert.equal(config.d1_databases[0].binding,'DB');
+  assert.equal(config.d1_databases[0].binding,'Bd');
+  assert.equal(config.d1_databases[0].database_name,'db');
+  assert.equal(config.d1_databases[0].database_id,'5a713bea-5799-48cb-833b-8199de893963');
   assert.equal(config.d1_databases[0].migrations_dir,'db/migrations');
   assert.equal(config.r2_buckets?.length,1);
-  assert.equal(config.r2_buckets[0].binding,'ATTACHMENTS');
+  assert.equal(config.r2_buckets[0].binding,'r2');
+  assert.equal(config.r2_buckets[0].bucket_name,'r2george');
   const serialized=JSON.stringify(config);
   assert.doesNotMatch(serialized,/api[_-]?token|secret|password/i);
-  const databaseId=config.d1_databases[0].database_id;
-  assert.match(databaseId,/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-  assert.notEqual(databaseId,'00000000-0000-0000-0000-000000000000');
-  assert.match(config.r2_buckets[0].bucket_name,/^[a-z0-9][a-z0-9._-]*$/i);
+});
+
+test('Previews de PR não herdam D1/R2 de produção',async()=>{
+  const config=await readJsonc('wrangler.jsonc');
+  assert.ok(config.previews&&typeof config.previews==='object');
+  assert.equal(config.previews.d1_databases,undefined);
+  assert.equal(config.previews.r2_buckets,undefined);
+});
+
+test('script de migrations locais usa o mesmo D1 declarado no Wrangler',async()=>{
+  const config=await readJsonc('wrangler.jsonc');
+  const script=await readFile(new URL('../scripts/cloud-migrations-local.mjs',import.meta.url),'utf8');
+  assert.match(script,new RegExp(`['\"]${config.d1_databases[0].database_name}['\"]`));
+  assert.doesNotMatch(script,/locadora-george-dev/);
+});
+
+test('Worker normaliza bindings do painel para nomes internos esperados',async()=>{
+  const {normalizeBindings}=await import('../cloudflare/worker.mjs');
+  const d1={prepare(){}};
+  const r2={put(){}};
+  const normalized=normalizeBindings({Bd:d1,r2});
+  assert.equal(normalized.DB,d1);
+  assert.equal(normalized.ATTACHMENTS,r2);
 });
 
 test('Worker mínimo expõe health sem exigir bindings de banco',async()=>{
