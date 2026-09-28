@@ -12,13 +12,14 @@ const GEORGE_EMAIL='georgedaut.adm@gmail.com';
 function read(relative){return readFileSync(fileURLToPath(new URL(`../${relative}`,import.meta.url)),'utf8');}
 
 test('login cloud fixa a instalação do George e mostra apenas e-mail e senha',()=>{
-  const source=read('src/cloud-app.mjs');
+  const source=read('src/cloud-app.mjs'),bootstrap=read('src/bootstrap.mjs'),index=read('index.html');
   assert.match(source,/CLOUD_INSTALLATION_ID\s*=\s*['"]LOCADORA-GEORGE['"]/);
   assert.match(source,/GEORGE_LOGIN_EMAIL\s*=\s*['"]georgedaut\.adm@gmail\.com['"]/);
   assert.doesNotMatch(source,/name=["']installationId["']/);
   assert.match(source,/<label>E-mail<input name=["']username["']/);
   assert.doesNotMatch(source,/>Usuário<input name=["']username["']/);
-  assert.match(source,/\/api\/v1\/auth\/bootstrap/);
+  assert.match(bootstrap,/\/api\/v1\/auth\/bootstrap/);
+  assert.match(index,/src\/bootstrap\.mjs/);
 });
 
 test('provisionamento cloud cria George como admin e desativa login admin legado',async()=>{
