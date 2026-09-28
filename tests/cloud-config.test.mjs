@@ -7,8 +7,9 @@ async function readJsonc(path){
   return JSON.parse(raw.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,''));
 }
 
-test('Cloudflare config usa os recursos reais de produção sem segredos',async()=>{
+test('Cloudflare config usa o Worker e os recursos reais de produção sem segredos',async()=>{
   const config=await readJsonc('wrangler.jsonc');
+  assert.equal(config.name,'sistemaaluguelcarrogeorge');
   assert.equal(config.main,'cloudflare/worker.mjs');
   assert.equal(config.compatibility_date,'2026-09-27');
   assert.equal(config.assets?.directory,'.cloudflare/public');
