@@ -25,6 +25,13 @@ test('Cloudflare config usa os recursos reais de produção sem segredos',async(
   assert.doesNotMatch(serialized,/api[_-]?token|secret|password/i);
 });
 
+test('script de migrations locais usa o mesmo D1 declarado no Wrangler',async()=>{
+  const config=await readJsonc('wrangler.jsonc');
+  const script=await readFile(new URL('../scripts/cloud-migrations-local.mjs',import.meta.url),'utf8');
+  assert.match(script,new RegExp(`['\"]${config.d1_databases[0].database_name}['\"]`));
+  assert.doesNotMatch(script,/locadora-george-dev/);
+});
+
 test('Worker normaliza bindings do painel para nomes internos esperados',async()=>{
   const {normalizeBindings}=await import('../cloudflare/worker.mjs');
   const d1={prepare(){}};
