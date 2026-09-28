@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { FakeD1 } from './helpers/fake-d1.mjs';
+import { ensureGeorgeAdmin } from '../cloudflare/auth/george-provision.mjs';
 
 const INSTALLATION_ID='LOCADORA-GEORGE';
 const GEORGE_EMAIL='georgedaut.adm@gmail.com';
@@ -18,12 +19,14 @@ test('login cloud fixa a instalação do George e mostra apenas e-mail e senha',
   assert.doesNotMatch(source,/>Usuário<input name=["']username["']/);
 });
 
-test('migrations provisionam George como admin ativo com troca obrigatória de senha',()=>{
-  const db=new FakeD1();
+test('provisionamento cloud cria George como admin e desativa login admin legado',async()=>{
+  const db=new FakeD1(),now='2026-09-28T01:40:00.000Z';
   try{
-    const installation=db.sqlite.prepare('SELECT id,name,deleted_at FROM installations WHERE id=?').get(INSTALLATION_ID);
-    assert.equal(installation?.id,INSTALLATION_ID);
-    assert.equal(installation?.deleted_at,null);
+    db.sqlite.prepare('INSERT INTO installations (id,name,created_at,updated_at) VALUES (?,?,?,?)').run(INSTALLATION_ID,'George legado',now,now);
+    db.sqlite.prepare('INSERT INTO users (id,installation_id,username,name,role,active,password_hash,must_change_password,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run('USR-LEGACY',INSTALLATION_ID,'admin','Administrador legado','admin',1,'legacy-hash',0,now,now);
+
+    await ensureGeorgeAdmin(db,{now});
 
     const user=db.sqlite.prepare('SELECT username,name,role,active,password_hash,must_change_password,deleted_at FROM users WHERE installation_id=? AND lower(username)=lower(?)').get(INSTALLATION_ID,GEORGE_EMAIL);
     assert.equal(user?.username,GEORGE_EMAIL);
@@ -33,7 +36,22 @@ test('migrations provisionam George como admin ativo com troca obrigatória de s
     assert.equal(user?.deleted_at,null);
     assert.match(String(user?.password_hash??''),/^pbkdf2-sha256\$310000\$[0-9a-f]{32}\$[0-9a-f]{64}$/i);
 
-    const legacyAdmin=db.sqlite.prepare("SELECT active FROM users WHERE installation_id=? AND lower(username)='admin' AND deleted_at IS NULL").get(INSTALLATION_ID);
-    if(legacyAdmin)assert.equal(Number(legacyAdmin.active),0);
+    const legacy=db.sqlite.prepare("SELECT active FROM users WHERE installation_id=? AND lower(username)='admin' AND deleted_at IS NULL").get(INSTALLATION_ID);
+    assert.equal(Number(legacy?.active),0);
+  }finally{db.close();}
+});
+
+test('provisionamento não redefine a senha depois do primeiro acesso',async()=>{
+  const db=new FakeD1();
+  try{
+    await ensureGeorgeAdmin(db,{now:'2026-09-28T01:40:00.000Z'});
+    const changedHash='pbkdf2-sha256$310000$00112233445566778899aabbccddeeff$00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+    db.sqlite.prepare('UPDATE users SET password_hash=?,must_change_password=0 WHERE installation_id=? AND username=?').run(changedHash,INSTALLATION_ID,GEORGE_EMAIL);
+
+    await ensureGeorgeAdmin(db,{now:'2026-09-29T01:40:00.000Z'});
+    const user=db.sqlite.prepare('SELECT password_hash,must_change_password FROM users WHERE installation_id=? AND username=?').get(INSTALLATION_ID,GEORGE_EMAIL);
+    assert.equal(user.password_hash,changedHash);
+    assert.equal(Number(user.must_change_password),0);
+    assert.equal(Number(db.sqlite.prepare('SELECT COUNT(*) AS n FROM users WHERE installation_id=? AND username=?').get(INSTALLATION_ID,GEORGE_EMAIL).n),1);
   }finally{db.close();}
 });
