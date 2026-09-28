@@ -20,8 +20,10 @@ test('Cloudflare config declara Worker, assets públicos isolados, D1 e R2 sem s
   assert.equal(config.r2_buckets[0].binding,'ATTACHMENTS');
   const serialized=JSON.stringify(config);
   assert.doesNotMatch(serialized,/api[_-]?token|secret|password/i);
-  assert.match(config.d1_databases[0].database_id,/^0{8}-0{4}-0{4}-0{4}-0{12}$/);
-  assert.match(config.r2_buckets[0].bucket_name,/local|dev/i);
+  const databaseId=config.d1_databases[0].database_id;
+  assert.match(databaseId,/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  assert.notEqual(databaseId,'00000000-0000-0000-0000-000000000000');
+  assert.match(config.r2_buckets[0].bucket_name,/^[a-z0-9][a-z0-9._-]*$/i);
 });
 
 test('Worker mínimo expõe health sem exigir bindings de banco',async()=>{
