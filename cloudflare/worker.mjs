@@ -18,6 +18,12 @@ import { routeApi } from './api/router.mjs';
 
 const JSON_HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
 function json(body,status=200,headers={}){return new Response(JSON.stringify(body),{status,headers:{...JSON_HEADERS,...headers}});}
+export function normalizeBindings(env={}){
+  const DB=env.DB??env.Bd??env.bd??env.db;
+  const ATTACHMENTS=env.ATTACHMENTS??env.r2??env.R2;
+  if(DB===env.DB&&ATTACHMENTS===env.ATTACHMENTS)return env;
+  return {...env,DB,ATTACHMENTS};
+}
 async function authFor(request,env){return await resolveSession(request,env)||await resolveDeviceCredential(request,env);}
 function isMutation(method){return ['POST','PUT','PATCH','DELETE'].includes(String(method).toUpperCase());}
 function requiresGeneration(pathname,method){
@@ -83,10 +89,14 @@ async function dispatch(request,env,ctx){
 }
 
 export default{
-  async fetch(request,env,ctx){return secureResponse(await dispatch(request,env,ctx));},
+  async fetch(request,env,ctx){
+    const bindings=normalizeBindings(env);
+    return secureResponse(await dispatch(request,bindings,ctx));
+  },
   async scheduled(_event,env,ctx){
-    if(!env?.DB?.prepare||!env?.ATTACHMENTS?.put)return;
-    const rows=await env.DB.prepare('SELECT id FROM installations WHERE deleted_at IS NULL ORDER BY id').all();
-    for(const row of rows?.results??[])ctx.waitUntil(writeCloudBackup(env,row.id).catch(error=>console.error('scheduled backup failed',row.id,error?.message)));
+    const bindings=normalizeBindings(env);
+    if(!bindings?.DB?.prepare||!bindings?.ATTACHMENTS?.put)return;
+    const rows=await bindings.DB.prepare('SELECT id FROM installations WHERE deleted_at IS NULL ORDER BY id').all();
+    for(const row of rows?.results??[])ctx.waitUntil(writeCloudBackup(bindings,row.id).catch(error=>console.error('scheduled backup failed',row.id,error?.message)));
   }
 };
