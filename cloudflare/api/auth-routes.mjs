@@ -43,6 +43,11 @@ export async function handleAuthRoute(request,env,_ctx,{service=null,auth=null}=
   const url=new URL(request.url),base=`${API_PREFIX}/auth/`;if(!url.pathname.startsWith(base))return json({ok:false,error:'not_found'},404);
   const action=url.pathname.slice(base.length).replace(/\/$/,'');
   try{
+    if(action==='bootstrap'){
+      if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405,{allow:'POST'});
+      await ensureGeorgeAdmin(env?.DB);
+      return json({ok:true});
+    }
     if(action==='login'){
       if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405,{allow:'POST'});
       const input=await body(request),installationId=String(input.installationId??'').trim(),username=String(input.username??'').trim(),password=String(input.password??'');
