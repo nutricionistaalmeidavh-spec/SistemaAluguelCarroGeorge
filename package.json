@@ -9,6 +9,7 @@
     "serve": "python3 -m http.server 4173",
     "pwa:prepare": "node scripts/prepare-pwa.mjs",
     "postinstall": "npm run pwa:prepare",
+    "build": "npm run pwa:prepare && npm run cloud:assets",
     "cloud:assets": "node scripts/prepare-cloud-assets.mjs",
     "cloud:test": "node --test tests/cloud-*.test.mjs",
     "cloud:migrations:local": "node scripts/cloud-migrations-local.mjs",
