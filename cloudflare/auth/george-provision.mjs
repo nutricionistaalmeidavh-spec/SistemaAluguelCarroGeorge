@@ -11,22 +11,13 @@ export async function ensureGeorgeAdmin(db,{now=new Date().toISOString()}={}){
     ON CONFLICT(id) DO NOTHING`)
     .bind(GEORGE_INSTALLATION_ID,'Sistema Locadora George',now,now).run();
 
+  // Provisionamento é create-only: depois que a conta existe, bootstrap/login nunca
+  // reativa usuário revogado, restaura soft-delete ou redefine senha já escolhida.
   await db.prepare(`INSERT INTO users (
       id,installation_id,username,name,role,active,password_hash,must_change_password,
       created_at,updated_at,version,updated_by_device,deleted_at
     ) VALUES (?,?,?,?,?,1,?,1,?,?,1,?,NULL)
-    ON CONFLICT(installation_id,username) DO UPDATE SET
-      id=users.id,
-      name=excluded.name,
-      role=excluded.role,
-      active=1,
-      password_hash=excluded.password_hash,
-      must_change_password=1,
-      updated_at=excluded.updated_at,
-      updated_by_device=excluded.updated_by_device,
-      version=users.version+1,
-      deleted_at=NULL
-    WHERE users.deleted_at IS NOT NULL`)
+    ON CONFLICT(installation_id,username) DO NOTHING`)
     .bind(
       GEORGE_ADMIN_ID,
       GEORGE_INSTALLATION_ID,
@@ -43,7 +34,7 @@ export async function ensureGeorgeAdmin(db,{now=new Date().toISOString()}={}){
     FROM users WHERE installation_id=? AND lower(username)=lower(?) LIMIT 1`)
     .bind(GEORGE_INSTALLATION_ID,GEORGE_ADMIN_EMAIL).first();
 
-  if(!user||user.deleted_at)throw new Error('george_admin_provision_failed');
+  if(!user)throw new Error('george_admin_provision_failed');
 
   await db.prepare(`UPDATE users SET active=0,updated_at=?,version=version+1
     WHERE installation_id=? AND lower(username)='admin' AND active=1 AND deleted_at IS NULL`)
