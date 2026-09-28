@@ -6,5 +6,6 @@
   "assets": {"directory": ".cloudflare/public","binding": "ASSETS","run_worker_first": true},
   "d1_databases": [{"binding": "Bd","database_name": "db","database_id": "5a713bea-5799-48cb-833b-8199de893963","migrations_dir": "db/migrations"}],
   "r2_buckets": [{"binding": "r2","bucket_name": "r2george"}],
+  "previews": {},
   "triggers": {"crons": ["17 3 * * *"]}
 }
