@@ -19,7 +19,8 @@ test('backup D1→R2 só vira valid depois do manifest completo e verificável',
     const verified=await readVerifiedManifest({DB:db,ATTACHMENTS:r2},ids.installationId,backup.id);
     assert.equal(verified.manifest.status,'complete');
     assert.equal(verified.manifest.installationId,ids.installationId);
-    assert.ok(verified.manifest.objects.length>=4,'esperava chunks das tabelas seedadas');
+    const tables=new Set(verified.manifest.objects.map(item=>item.table));
+    for(const table of ['users','customers','vehicles'])assert.ok(tables.has(table),`chunk ausente: ${table}`);
   }finally{db.close();}
 });
 
