@@ -26,7 +26,7 @@ export async function restoreCloudBackup(env,auth,backupId){
   }
 
   const current=await env.DB.prepare('SELECT restore_generation FROM installations WHERE id=? AND deleted_at IS NULL LIMIT 1').bind(auth.installationId).first();
-  const fromGeneration=Number(current?.restore_generation)||0,toGeneration=fromGeneration+1,restoreId=`RST-${crypto.randomUUID()}`,now=new Date().toISOString(),statements=[];
+  const fromGeneration=Number(current?.restore_generation)||0,toGeneration=fromGeneration+1,restoreId=`RST-${crypto.randomUUID()}`,auditId=`AUD-${crypto.randomUUID()}`,now=new Date().toISOString(),statements=[];
 
   statements.push(env.DB.prepare('INSERT INTO restore_records (id,installation_id,backup_id,from_generation,to_generation,actor_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)').bind(restoreId,auth.installationId,backupId,fromGeneration,toGeneration,auth.userId,'running',now));
 
@@ -47,6 +47,7 @@ export async function restoreCloudBackup(env,auth,backupId){
   statements.push(env.DB.prepare('DELETE FROM sync_changes WHERE installation_id=?').bind(auth.installationId));
   statements.push(env.DB.prepare('DELETE FROM sync_cursors WHERE installation_id=?').bind(auth.installationId));
   statements.push(env.DB.prepare('UPDATE installations SET restore_generation=?,updated_at=?,version=version+1 WHERE id=?').bind(toGeneration,now,auth.installationId));
+  statements.push(env.DB.prepare(`INSERT INTO audit_log (id,installation_id,actor_id,action,entity_type,entity_id,details_json,at,created_at,updated_at,version,updated_by_device,deleted_at) VALUES (?,?,?,?,?,?,?,?,?,?,1,?,NULL)`).bind(auditId,auth.installationId,auth.userId,'backup.restore','installation',auth.installationId,JSON.stringify({backupId,restoreId,fromGeneration,toGeneration}),now,now,now,auth.deviceId??null));
   statements.push(env.DB.prepare('UPDATE restore_records SET status=?,completed_at=? WHERE id=?').bind('complete',now,restoreId));
 
   await env.DB.batch(statements);
