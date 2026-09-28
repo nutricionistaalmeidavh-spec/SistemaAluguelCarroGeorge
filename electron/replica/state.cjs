@@ -1,0 +1,3 @@
+'use strict';
+function createReplicaStateStore({kv,installationId='LOCADORA-GEORGE',deviceId='GEORGE-PC'}={}){if(!kv?.getJson||!kv?.setJson)throw new TypeError('kv_store_required');const key=`plan03:replica-state:${installationId}:${deviceId}`;return Object.freeze({load(){return{initialized:false,cursor:0,restoreGeneration:0,lastSyncAt:null,lastError:null,...kv.getJson(key,{})};},save(state){kv.setJson(key,state);return state;},error(error,state){const next={...state,lastError:String(error?.code||error?.message||error),lastErrorAt:new Date().toISOString()};kv.setJson(key,next);return next;}});}
+exports.createReplicaStateStore=createReplicaStateStore;
