@@ -4,7 +4,7 @@
   "main": "cloudflare/worker.mjs",
   "compatibility_date": "2026-09-27",
   "assets": {"directory": ".cloudflare/public","binding": "ASSETS","run_worker_first": true},
-  "d1_databases": [{"binding": "DB","database_name": "locadora-george-dev","database_id": "00000000-0000-0000-0000-000000000000","migrations_dir": "db/migrations"}],
+  "d1_databases": [{"binding": "DB","database_name": "locadora-george-dev","database_id": "5a713bea-5799-48cb-833b-8199de893963","migrations_dir": "db/migrations"}],
   "r2_buckets": [{"binding": "ATTACHMENTS","bucket_name": "locadora-george-dev"}],
   "triggers": {"crons": ["17 3 * * *"]}
 }
