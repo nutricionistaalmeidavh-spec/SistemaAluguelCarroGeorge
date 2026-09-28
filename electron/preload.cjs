@@ -1,7 +1,2 @@
-const { contextBridge,ipcRenderer }=require('electron');
-contextBridge.exposeInMainWorld('locadoraDesktop',{
-  getSyncInfo:()=>ipcRenderer.invoke('locadora:sync-info'),
-  dbGet:(key)=>ipcRenderer.invoke('locadora:db:get',key),
-  dbSet:(key,value)=>ipcRenderer.invoke('locadora:db:set',key,value),
-  dbRemove:(key)=>ipcRenderer.invoke('locadora:db:remove',key)
-});
+const {contextBridge,ipcRenderer}=require('electron');
+contextBridge.exposeInMainWorld('locadoraDesktop',{getSyncInfo:()=>ipcRenderer.invoke('locadora:sync-info'),snapshotLoad:()=>ipcRenderer.invoke('locadora:snapshot:load'),snapshotSave:s=>ipcRenderer.invoke('locadora:snapshot:save',s),putAttachment:v=>ipcRenderer.invoke('locadora:attachment:put',v),getAttachment:id=>ipcRenderer.invoke('locadora:attachment:get',id),verifyAttachment:id=>ipcRenderer.invoke('locadora:attachment:verify',id),removeAttachment:id=>ipcRenderer.invoke('locadora:attachment:remove',id),listAttachments:(t,id)=>ipcRenderer.invoke('locadora:attachment:list',t,id),dbGet:key=>ipcRenderer.invoke('locadora:db:get',key),dbSet:(key,value)=>ipcRenderer.invoke('locadora:db:set',key,value),dbRemove:key=>ipcRenderer.invoke('locadora:db:remove',key),replicaStatus:()=>ipcRenderer.invoke('locadora:replica:status'),replicaSyncNow:()=>ipcRenderer.invoke('locadora:replica:sync-now'),replicaConfigure:input=>ipcRenderer.invoke('locadora:replica:configure',input),createLocalBackup:()=>ipcRenderer.invoke('locadora:backup-local:create'),stageLocalRestore:path=>ipcRenderer.invoke('locadora:restore-local:stage',path),getOperationalDiagnostics:()=>ipcRenderer.invoke('locadora:diagnostics')});

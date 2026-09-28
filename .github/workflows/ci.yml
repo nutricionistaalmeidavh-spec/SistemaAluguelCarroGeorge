@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       LOCADORA_QA_ADMIN_PASSWORD: '1234'
       ELECTRON_ENABLE_LOGGING: '1'
@@ -26,12 +26,18 @@ jobs:
       - run: npm run qa:install
       - name: Static, domain, persistence, sync and vertical gates
         run: npm run verify
+      - name: Disaster recovery scenarios
+        run: npm run dr:test
+      - name: Cloudflare local D1 migrations and public assets
+        run: npm run cloud:migrations:local && npm run cloud:assets && npm run cloud:test
       - name: Code coverage gate
         run: npm run coverage
       - name: Electron E2E
         run: timeout --signal=TERM --kill-after=30s 12m xvfb-run -a npm run e2e
       - name: ArtiSys QA release gate
         run: timeout --signal=TERM --kill-after=30s 12m xvfb-run -a npm run qa:release
+      - name: Plano 03 release structure
+        run: npm run plan03:gate
       - name: Upload QA artifacts
         if: always()
         uses: actions/upload-artifact@v4

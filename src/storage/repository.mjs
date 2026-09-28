@@ -1,7 +1,13 @@
 import { createEmptySnapshot, migrateLegacySnapshot } from '../domain/rental.mjs';
 import { ensureCommercialSnapshot } from '../domain/commercial.mjs';
 import { syncMaintenanceAvailability } from '../domain/maintenance.mjs';
+import { createApiClient } from '../api/client.mjs';
 import { createPwaSqliteStore } from './pwa-sqlite.mjs';
+import { createAttachmentStore } from './attachment-store.mjs';
+import { createCacheStore } from './cache-store.mjs';
+import { createCloudRepository } from './cloud-repository.mjs';
+import { createCloudSync } from '../sync/cloud-sync.mjs';
+import { createOutbox } from '../sync/outbox.mjs';
 
 export const STORE_KEY='app:snapshot:v3';
 
@@ -15,17 +21,33 @@ function normalize(raw){
 async function createDesktopStore(){
   const bridge=globalThis.window?.locadoraDesktop;
   if(!bridge?.dbGet||!bridge?.dbSet||!bridge?.dbRemove)return null;
+  const hasSnapshotBridge=Boolean(bridge.snapshotLoad&&bridge.snapshotSave);
   return Object.freeze({
     kind:'sqlite-desktop',
-    get:(key)=>bridge.dbGet(String(key)),
-    set:(key,value)=>bridge.dbSet(String(key),String(value)),
+    get:(key)=>hasSnapshotBridge&&String(key)===STORE_KEY?bridge.snapshotLoad():bridge.dbGet(String(key)),
+    set:(key,value)=>hasSnapshotBridge&&String(key)===STORE_KEY?bridge.snapshotSave(String(value)):bridge.dbSet(String(key),String(value)),
     remove:(key)=>bridge.dbRemove(String(key)),
     flush:async()=>true
   });
 }
 
+export function isCloudRuntime(documentRef=globalThis.document){
+  return String(documentRef?.querySelector?.('meta[name="locadora-runtime"]')?.getAttribute?.('content')??'').toLowerCase()==='cloud';
+}
+
+export async function createCloudRuntimeRepository({store=null,baseUrl='',fetchImpl=globalThis.fetch,maxRetries=1,retryDelayMs=250,outbox=null}={}){
+  const backing=store??await createPwaSqliteStore();
+  const cache=createCacheStore({store:backing});
+  const durableOutbox=outbox??createOutbox(backing);
+  const api=createApiClient({baseUrl,fetchImpl,maxRetries,retryDelayMs,onUnauthorized:()=>cache.clearSession()});
+  const cloud=createCloudRepository({api,cache,outbox:durableOutbox});
+  const cloudSync=createCloudSync({api,cache,store:backing});
+  return Object.freeze({...cloud,api,kv:backing,outbox:durableOutbox,cloudSync});
+}
+
 export async function createRepository({onPersistenceError=()=>{}}={}){
   const storage=await createDesktopStore()??await createPwaSqliteStore();
+  const attachments=await createAttachmentStore();
   const raw=await storage.get(STORE_KEY);
   let cache=normalize(raw);
   if(raw==null||Number((typeof raw==='string'?JSON.parse(raw):raw)?.version||0)<4)await storage.set(STORE_KEY,JSON.stringify(cache));
@@ -58,10 +80,16 @@ export async function createRepository({onPersistenceError=()=>{}}={}){
 
   return Object.freeze({
     kind:storage.kind,
+    attachments,
     load(){return cache;},
     save(snapshot){cache=normalize(snapshot);persist(cache);return cache;},
     flush,
     async reset(){cache=normalize(null);await storage.remove(STORE_KEY);await storage.set(STORE_KEY,JSON.stringify(cache));return cache;},
     kv
   });
+}
+
+export async function createRuntimeRepository(options={}){
+  if(options.mode==='cloud'||(options.mode==null&&isCloudRuntime(options.documentRef)))return createCloudRuntimeRepository(options);
+  return createRepository(options);
 }

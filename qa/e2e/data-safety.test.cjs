@@ -18,18 +18,22 @@ async function company(page,name){
  await expect(page.locator('.toast').filter({hasText:'Configurações salvas.'}).last()).toBeVisible();
 }
 async function sync(page){
- await page.locator('.toast').evaluateAll(nodes=>nodes.forEach(node=>node.remove()));
+ const info=await page.evaluate(()=>window.locadoraDesktop.getSyncInfo());
+ assert.equal(info?.legacySnapshotSync,true,'este cenário de rollback deve iniciar o Electron com compatibilidade de snapshot explícita');
  await page.locator('[data-nav="sync"]').click();
+ const enabled=page.locator('#sync-form input[name="enabled"]');if(!await enabled.isChecked())await enabled.check();
+ await page.locator('#sync-form button.primary').click();
+ await expect(page.locator('.toast').filter({hasText:'Configuração de sincronização salva.'}).last()).toBeVisible();
+ await page.locator('.toast').evaluateAll(nodes=>nodes.forEach(node=>node.remove()));
  await page.locator('#sync-now').click();
- await expect(page.locator('.toast').filter({hasText:'Sincronização concluída.'}).last()).toBeVisible();
+ await expect(page.locator('.toast').filter({hasText:'Sincronização concluída.'}).last()).toBeVisible({timeout:10000});
 }
 test('backup: export, alter, restore, synchronize and reload preserve restored data',async()=>{
- const ctx=await launchLocadora();const errors=[];ctx.page.on('pageerror',e=>errors.push(e.message));
+ const ctx=await launchLocadora({legacySnapshotSync:true});const errors=[];ctx.page.on('pageerror',e=>errors.push(e.message));
  try{
   const p=ctx.page;await login(p);await company(p,'Empresa do backup');await sync(p);
   await p.locator('[data-nav="backup"]').click();
   const backupPath=path.join(ctx.dir,'backup-exportado.json');
-  // Electron owns native downloads; save the actual emitted DownloadItem.
   await ctx.app.evaluate(({session},file)=>{
    globalThis.qaDownload=new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>reject(new Error('Electron backup download timeout')),30000);
@@ -52,7 +56,6 @@ test('backup: export, alter, restore, synchronize and reload preserve restored d
   await sync(p);await p.reload();await login(p);
   await p.locator('[data-nav="backup"]').click();
   await expect(p.locator('#settings-form [name="companyName"]')).toHaveValue('Empresa do backup');
-  // Reject a modified backup without changing the persisted data.
   envelope.snapshot.settings.companyName='Backup adulterado';
   await p.locator('#backup-file').setInputFiles({name:'corrompido.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(envelope))});
   await expect(p.locator('.toast').filter({hasText:'Falha de integridade'})).toBeVisible();
@@ -64,12 +67,11 @@ test('permissions: inspector and attendant respect read, write and restore restr
  const ctx=await launchLocadora();
  try{
   const p=ctx.page;await p.locator('#login').waitFor();
-  // Configure only the disposable test database; exercise real login and UI permissions.
   await p.evaluate(async password=>{
-   const key='app:snapshot:v3',snapshot=JSON.parse(await window.locadoraDesktop.dbGet(key));
+   const snapshot=JSON.parse(await window.locadoraDesktop.snapshotLoad());
    const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(password)))).map(b=>b.toString(16).padStart(2,'0')).join('');
    for(const user of snapshot.users.filter(u=>['vistoria','atendente'].includes(u.username)))user.passwordHash=hash;
-   await window.locadoraDesktop.dbSet(key,JSON.stringify(snapshot));
+   await window.locadoraDesktop.snapshotSave(snapshot);
   },process.env.LOCADORA_QA_ADMIN_PASSWORD);
   await p.reload();await login(p,'vistoria');
   await p.locator('[data-nav="frota"]').click();await expect(p.locator('#view h1')).toHaveText('Frota');

@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify-and-build:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       LOCADORA_QA_ADMIN_PASSWORD: '1234'
     steps:
@@ -23,10 +23,16 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Verify source
         run: npm run verify
+      - name: Disaster recovery and clean-PC reconstruction
+        run: npm run dr:test
       - name: Code coverage
         run: npm run coverage
+      - name: Plano 03 release structure
+        run: npm run plan03:gate
       - name: Build Windows installer
         run: npm run dist
+      - name: Verify Windows installer artifact
+        run: npm run windows:installer:verify
       - uses: actions/upload-artifact@v4
         with:
           name: Sistema-Locadora-George-Windows
