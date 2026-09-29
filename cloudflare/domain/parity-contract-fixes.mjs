@@ -21,7 +21,7 @@ export async function issueContractParity(context,input,operationId){
     JOIN vehicles v ON v.installation_id=r.installation_id AND v.id=r.vehicle_id AND v.deleted_at IS NULL
     LEFT JOIN users u ON u.installation_id=r.installation_id AND u.id=r.attendant_id AND u.deleted_at IS NULL
     WHERE r.installation_id=? AND r.id=? AND r.deleted_at IS NULL LIMIT 1`).bind(installationId,rentalId).first();if(!row)fail('rental_not_found');
-  const settingsRow=await db.prepare('SELECT settings_json FROM app_settings WHERE installation_id=? AND deleted_at IS NULL LIMIT 1').bind(installationId).first(),settings=parse(settingsRow?.settings_json,{}),license=parse(row.driver_license_json,{}),documents=parse(row.vehicle_documents,{});
+  const settingsRow=await db.prepare('SELECT settings_json FROM app_settings WHERE installation_id=? LIMIT 1').bind(installationId).first(),settings=parse(settingsRow?.settings_json,{}),license=parse(row.driver_license_json,{}),documents=parse(row.vehicle_documents,{});
   const variables={
     locadora:{nome:settings.companyName??'',documento:settings.document??'',telefone:settings.phone??'',endereco:settings.address??''},
     cliente:{nome:row.customer_name??'',cpf:row.customer_document??'',documento:row.customer_document??'',telefone:row.customer_phone??'',email:row.customer_email??'',endereco:row.customer_address??'',cnh:license.number??'',categoria_cnh:license.category??''},
