@@ -54,6 +54,7 @@ test('fases 8 e 10: desktop expõe somente status cloud e não depende do sync L
   assert.doesNotMatch(preload,/getSyncInfo|locadora:sync-info/);
   assert.match(preload,/cloudSyncConflicts/);
   assert.match(preload,/cloudSyncResolveConflict/);
+  assert.match(preload,/input\?\.strategy\?\?input\?\?['"]accept-cloud['"]/);
   assert.doesNotMatch(app,/createSyncClient|renderSync|PC ↔ Mobile|pair=|serverUrl|syncClient/);
   assert.match(app,/cloudSyncStatus/);
   assert.match(app,/Nuvem/);
