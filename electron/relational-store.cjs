@@ -74,6 +74,12 @@ class RelationalStore {
   saveSnapshot(snapshot) {
     if (typeof this.snapshotToRelational !== 'function') throw new Error('snapshotToRelational não configurado.');
     const dataset = this.snapshotToRelational(snapshot, { installationId:this.installationId, deviceId:this.deviceId });
+    const settingsRow=dataset.app_settings?.[0];
+    if(settingsRow){
+      settingsRow.version=Math.max(1,Number(snapshot?.settingsSyncVersion??settingsRow.version??1)||1);
+      settingsRow.updated_at=snapshot?.updatedAt??settingsRow.updated_at;
+      settingsRow.updated_by_device=snapshot?.settingsUpdatedByDevice??this.deviceId;
+    }
     this.replaceFromDataset(dataset);
     return snapshot;
   }
