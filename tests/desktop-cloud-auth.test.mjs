@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
 const require=createRequire(import.meta.url);
 
 function memoryStore(){const data=new Map();return{data,get:k=>data.get(String(k))??null,set:(k,v)=>{data.set(String(k),String(v));return true;},remove:k=>{data.delete(String(k));return true;},getJson(k,fallback=null){const raw=data.get(String(k));if(raw==null)return fallback;try{return JSON.parse(raw);}catch{return fallback;}},setJson(k,v){data.set(String(k),JSON.stringify(v));return true;}};}
@@ -68,7 +69,7 @@ test('protocolo privado entrega módulos ESM sem expor servidor HTTP/LAN',async(
   const {createAppProtocolHandler,mimeType}=require('../electron/app-protocol.cjs');
   assert.equal(mimeType('/tmp/app.mjs'),'text/javascript; charset=utf-8');
   assert.equal(mimeType('/tmp/index.html'),'text/html; charset=utf-8');
-  const handler=createAppProtocolHandler({rootDir:new URL('..',import.meta.url).pathname});
+  const handler=createAppProtocolHandler({rootDir:fileURLToPath(new URL('..',import.meta.url))});
   const response=await handler(new Request('locadora://app/index.html'));
   assert.equal(response.status,200);
   assert.match(response.headers.get('content-type'),/text\/html/);
