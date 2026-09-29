@@ -8,6 +8,7 @@ function createSqliteReplicaStore({relationalStore,attachmentStore,installationI
   async replaceAll(snapshot){tx(()=>{for(const table of DELETE_ORDER)db.prepare(`DELETE FROM ${table} WHERE installation_id=?`).run(installationId);upsertInstallation(db,snapshot?.installations?.[0],installationId);for(const table of TABLES)for(const row of snapshot?.[table]||[])insertRow(db,table,row);ensureDevice(db,installationId,deviceId);});},
   async applyChanges(){return true;},
   async applyTableSnapshots(snapshots={}){const names=Object.keys(snapshots).filter(x=>TABLES.includes(x));if(!names.length)return;tx(()=>{for(const table of [...names].reverse())db.prepare(`DELETE FROM ${table} WHERE installation_id=?`).run(installationId);for(const table of names)for(const row of snapshots[table]||[])insertRow(db,table,row);});},
-  async putAttachment(meta,data){if(!attachmentStore)throw new Error('attachment_store_required');return attachmentStore.put({id:meta.id,entityType:meta.entityType||meta.entity_type,entityId:meta.entityId||meta.entity_id,mimeType:meta.mimeType||meta.mime_type,bytes:data,createdBy:meta.createdBy||meta.created_by||null});}
+  async putAttachment(meta,data){if(!attachmentStore)throw new Error('attachment_store_required');return attachmentStore.put({id:meta.id,entityType:meta.entityType||meta.entity_type,entityId:meta.entityId||meta.entity_id,mimeType:meta.mimeType||meta.mime_type,bytes:data,createdBy:meta.createdBy||meta.created_by||null});},
+  async removeAttachment(id){if(!attachmentStore)return false;return attachmentStore.remove(String(id));}
 });}
 exports.createSqliteReplicaStore=createSqliteReplicaStore;exports.REPLICA_TABLES=TABLES;
