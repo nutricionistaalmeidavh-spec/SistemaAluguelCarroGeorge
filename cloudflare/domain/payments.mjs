@@ -5,6 +5,7 @@ import { appendChangeStatement } from '../sync/change-log.mjs';
 function fail(code,message=code){const error=new Error(message);error.code=code;throw error;}
 function round(value){return Math.round((Number(value)+Number.EPSILON)*100)/100;}
 function required(value,code){const text=String(value??'').trim();if(!text)fail(code);return text;}
+function entityId(value,prefix){const text=String(value??'').trim();if(text&&/^[A-Za-z0-9._:-]{1,120}$/.test(text))return text;return `${prefix}-${crypto.randomUUID()}`;}
 
 export async function recordRentalPaymentOperation(context,input,operationId){
   const db=context?.db,auth=context?.auth,installationId=auth?.installationId,userId=auth?.userId;
@@ -16,7 +17,7 @@ export async function recordRentalPaymentOperation(context,input,operationId){
     FROM rentals r WHERE r.installation_id = ? AND r.id = ? AND r.deleted_at IS NULL LIMIT 1`).bind(installationId,rentalId).first();
   if(!rental)fail('rental_not_found');if(rental.billing_mode==='daily')fail('daily_schedule_required');
   if(amount>round(Number(rental.total)-Number(rental.paid_amount))+0.001)fail('payment_exceeds_balance','Pagamento excede o saldo da locação.');
-  const now=new Date().toISOString(),paidAt=input.paidAt??now,executionId=`EXE-${crypto.randomUUID()}`,paymentId=`PAG-${crypto.randomUUID()}`,deviceId=auth.deviceId??null;
+  const now=new Date().toISOString(),paidAt=input.paidAt??now,executionId=`EXE-${crypto.randomUUID()}`,paymentId=entityId(input?.id,'PAG'),deviceId=auth.deviceId??null;
   const result={id:paymentId,rentalId,amount,method,paidAt};
   const nextPaid=round(Number(rental.paid_amount)+amount),nextRentalStatus=Number(rental.total)<=nextPaid+0.001?'pago':'aberto',nextRentalVersion=Number(rental.version)+1;
   const changePayload={
@@ -70,7 +71,7 @@ export async function recordInstallmentPaymentOperation(context,input,operationI
     WHERE i.installation_id = ? AND i.id = ? AND i.deleted_at IS NULL LIMIT 1`).bind(installationId,installmentId).first();
   if(!installment)fail('installment_not_found');if(installment.status==='cancelled')fail('installment_cancelled');
   if(amount>round(Number(installment.amount)-Number(installment.paid_amount))+0.001)fail('payment_exceeds_balance','Pagamento excede o saldo da parcela.');
-  const rentalId=installment.rental_id,now=new Date().toISOString(),paidAt=input.paidAt??now,executionId=`EXE-${crypto.randomUUID()}`,paymentId=`BPG-${crypto.randomUUID()}`,deviceId=auth.deviceId??null;
+  const rentalId=installment.rental_id,now=new Date().toISOString(),paidAt=input.paidAt??now,executionId=`EXE-${crypto.randomUUID()}`,paymentId=entityId(input?.id,'BPG'),deviceId=auth.deviceId??null;
   const result={id:paymentId,installmentId,rentalId,amount,method,paidAt};
   const nextInstallmentPaid=round(Number(installment.paid_amount)+amount),nextInstallmentStatus=Number(installment.amount)<=nextInstallmentPaid+0.001?'paid':'partial';
   const nextRentalPaid=round(Number(installment.rental_paid_amount)+amount),nextRentalStatus=Number(installment.rental_total)<=nextRentalPaid+0.001?'pago':'aberto';
