@@ -48,7 +48,8 @@ test('fases 8 e 10: desktop expõe somente status cloud e não depende do sync L
   const preload=fs.readFileSync(new URL('../electron/preload.cjs',import.meta.url),'utf8');
   const app=fs.readFileSync(new URL('../src/app.mjs',import.meta.url),'utf8');
   assert.doesNotMatch(main,/sync-server\.cjs|startSyncServer|locadora:sync-info|pairingUrls|lanAddresses|syncInfo\.localUrl/);
-  assert.match(main,/loadFile\(/);
+  assert.match(main,/locadora:\/\/app\/index\.html/);
+  assert.match(main,/createAppProtocolHandler/);
   assert.match(main,/locadora:cloud-sync:conflicts/);
   assert.match(main,/locadora:cloud-sync:resolve-conflict/);
   assert.doesNotMatch(preload,/getSyncInfo|locadora:sync-info/);
