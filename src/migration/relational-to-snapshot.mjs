@@ -42,7 +42,10 @@ export function relationalToSnapshot(dataset) {
     customers:[], vehicles:[], rentals:[], expenses:[], users:[], ledger:[], audit:[], inspections:[], maintenance:[],
     contractTemplates:[], issuedContracts:[], billingPlans:[], billingInstallments:[], collectionActions:[],
     alertState:parseJson(alertRow?.state_json, {}),
-    settings:parseJson(settingsRow?.settings_json, {})
+    settings:parseJson(settingsRow?.settings_json, {}),
+    settingsSyncVersion:Math.max(1,Number(settingsRow?.version||1)||1),
+    settingsUpdatedAt:settingsRow?.updated_at??null,
+    settingsUpdatedByDevice:settingsRow?.updated_by_device??null
   };
   const restorePoint = parseJson(meta.restore_point_json, null);
   if (restorePoint) snapshot.restorePoint = restorePoint;
