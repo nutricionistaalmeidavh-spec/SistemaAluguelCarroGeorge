@@ -46,6 +46,8 @@ test('captura QA de todas as telas web correspondentes',async t=>{
   fs.mkdirSync(OUT,{recursive:true});
   const fx=await launchCloudPwa();t.after(()=>fx.close());
   const {page}=fx;
+  await page.locator('#cloud-login').waitFor();
+  await shot(page,'web-00-login');
   await fx.login();
   await seed(page);
 
