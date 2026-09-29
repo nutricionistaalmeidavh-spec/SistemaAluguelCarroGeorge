@@ -70,6 +70,7 @@ export async function createRepository({onPersistenceError=()=>{}}={}){
     if(failedWrites.size)throw failedWrites.values().next().value;
     await storage.flush?.();
   };
+  const reload=async()=>{await flush();const latest=await storage.get(STORE_KEY);cache=normalize(latest);return cache;};
   const kv=Object.freeze({
     kind:storage.kind,
     get:(key)=>storage.get(key),
@@ -83,6 +84,7 @@ export async function createRepository({onPersistenceError=()=>{}}={}){
     attachments,
     load(){return cache;},
     save(snapshot){cache=normalize(snapshot);persist(cache);return cache;},
+    reload,
     flush,
     async reset(){cache=normalize(null);await storage.remove(STORE_KEY);await storage.set(STORE_KEY,JSON.stringify(cache));return cache;},
     kv
