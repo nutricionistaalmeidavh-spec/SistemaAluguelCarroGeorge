@@ -25,7 +25,7 @@ const DB_FILE='locadora-george.sqlite';
 const INSTALLATION_ID='LOCADORA-GEORGE';
 const DESKTOP_DEVICE_ID='GEORGE-PC';
 const REPLICA_CONFIG_KEY='plan03:replica-config';
-const DEFAULT_CLOUD_BASE_URL='https://sistemaaluguelcarrogeorge.nutricionistaalmeidavh.workers.dev';
+const DEFAULT_CLOUD_BASE_URL='https://sistemaaluguelcarrogeorge.sistema-artisys.workers.dev';
 const CLOUD_BASE_URL=String(process.env.LOCADORA_CLOUD_URL||DEFAULT_CLOUD_BASE_URL).trim();
 
 function configureStoragePaths(){
