@@ -1,0 +1,50 @@
+{
+  "name": "pdf-all-screens",
+  "steps": [
+    {"action":"fill","label":"Usuário","value":"admin"},
+    {"action":"fill","label":"Senha","valueFromEnv":"LOCADORA_QA_ADMIN_PASSWORD"},
+    {"action":"click","role":"button","name":"Entrar"},
+
+    {"action":"click","selector":"[data-nav=\"dashboard\"]"},
+    {"action":"screenshot","name":"desktop-01-dashboard","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"reservas\"]"},
+    {"action":"screenshot","name":"desktop-02-reservas-locacoes","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"clientes\"]"},
+    {"action":"screenshot","name":"desktop-03-clientes","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"frota\"]"},
+    {"action":"screenshot","name":"desktop-04-frota","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"vistorias\"]"},
+    {"action":"screenshot","name":"desktop-05-vistorias","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"manutencao\"]"},
+    {"action":"screenshot","name":"desktop-06-manutencao","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"financeiro\"]"},
+    {"action":"screenshot","name":"desktop-07-financeiro","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"cobrancas\"]"},
+    {"action":"screenshot","name":"desktop-08-cobrancas","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"inadimplencia\"]"},
+    {"action":"screenshot","name":"desktop-09-inadimplencia","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"contratos\"]"},
+    {"action":"screenshot","name":"desktop-10-contratos","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"alertas\"]"},
+    {"action":"screenshot","name":"desktop-11-alertas","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"documentos\"]"},
+    {"action":"screenshot","name":"desktop-12-documentos","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"auditoria\"]"},
+    {"action":"screenshot","name":"desktop-13-auditoria","fullPage":true},
+
+    {"action":"click","selector":"[data-nav=\"backup\"]"},
+    {"action":"screenshot","name":"desktop-14-backup-configuracoes","fullPage":true}
+  ]
+}
