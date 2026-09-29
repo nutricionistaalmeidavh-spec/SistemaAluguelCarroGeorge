@@ -31,10 +31,18 @@ function createDesktopCloudSyncController({outbox,runOutbox,api,blobs=null,authe
     inFlight=doFlush().finally(()=>{inFlight=null;});
     return inFlight;
   }
+  async function conflicts(){return outbox.list({statuses:['conflict']});}
+  async function resolveConflict(id,{strategy='accept-cloud'}={}){
+    const item=await outbox.resolveConflict(id,{strategy});
+    if(strategy==='accept-cloud'&&authenticated())await pull();
+    return{item,summary:await outbox.summary()};
+  }
 
   return Object.freeze({
     enqueueOperations,
     flush,
+    conflicts,
+    resolveConflict,
     status:()=>outbox.summary()
   });
 }
