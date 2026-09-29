@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require=createRequire(import.meta.url);
@@ -76,4 +77,13 @@ test('fase 4: controller deduplica operationId já durável inclusive após falh
   ]);
   assert.deepEqual(enqueued.map(x=>x.operationId),['desktop:vehicle.create:VEI-1']);
   assert.equal((await controller.status()).total,2);
+});
+
+test('fase 4: processo principal persiste snapshot antes de enfileirar e entregar operações cloud',()=>{
+  const source=fs.readFileSync(new URL('../electron/main.cjs',import.meta.url),'utf8');
+  assert.match(source,/buildCloudOperations/);
+  assert.match(source,/createDesktopCloudSyncController/);
+  assert.match(source,/createOutbox/);
+  assert.match(source,/relationalStore\.saveSnapshot\(snapshot\)[\s\S]{0,700}enqueueOperations\(buildCloudOperations/);
+  assert.match(source,/cloudAuth\?\.status\?\.\(\)\.authenticated/);
 });
