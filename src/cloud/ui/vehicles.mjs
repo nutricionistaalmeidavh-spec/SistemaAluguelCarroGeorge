@@ -1,0 +1,39 @@
+import { can } from '../../domain/auth.mjs';
+import { esc,money,shortDate } from './common.mjs';
+
+function text(form,name){return String(form?.get?.(name)??'').trim();}
+function number(form,name){const value=Number(form?.get?.(name));return Number.isFinite(value)?value:0;}
+export function vehiclePayload(form,current={}){return{
+  ...(current?.id?{id:String(current.id)}:{}),
+  ...(current?.version!=null?{version:Number(current.version)}:{}),
+  model:text(form,'model'),plate:text(form,'plate').toUpperCase(),year:text(form,'year'),mileage:number(form,'mileage'),category:text(form,'category'),color:text(form,'color'),dailyRate:number(form,'dailyRate'),purchasePrice:number(form,'purchasePrice'),availability:text(form,'availability')||'disponivel',
+  documentsJson:JSON.stringify({insuranceExpiry:text(form,'insuranceExpiry'),licensingExpiry:text(form,'licensingExpiry'),inspectionExpiry:text(form,'inspectionExpiry'),renavam:text(form,'renavam'),chassis:text(form,'chassis')})
+};}
+
+function formHtml(current={}){const docs=current.documents??{};return `<form id="cloud-vehicle-form" class="panel cloud-form" data-test="vehicle-form">
+  <h2>${current.id?'Editar veículo':'Novo veículo'}</h2>
+  <input type="hidden" name="id" value="${esc(current.id??'')}"><input type="hidden" name="version" value="${esc(current.version??'')}">
+  <label>Modelo<input name="model" value="${esc(current.model??'')}" required></label>
+  <label>Placa<input name="plate" value="${esc(current.plate??'')}" required></label>
+  <label>Ano<input name="year" value="${esc(current.year??'')}"></label>
+  <label>Quilometragem<input name="mileage" type="number" min="0" value="${Number(current.mileage||0)}"></label>
+  <label>Categoria<input name="category" value="${esc(current.category??'')}"></label>
+  <label>Cor<input name="color" value="${esc(current.color??'')}"></label>
+  <label>Diária<input name="dailyRate" type="number" min="0" step="0.01" value="${Number(current.dailyRate||0)}" required></label>
+  <label>Valor de compra<input name="purchasePrice" type="number" min="0" step="0.01" value="${Number(current.purchasePrice||0)}"></label>
+  <label>Status<select name="availability">${['disponivel','locado','manutencao'].map(value=>`<option value="${value}" ${current.availability===value?'selected':''}>${value}</option>`).join('')}</select></label>
+  <label>Seguro até<input name="insuranceExpiry" type="date" value="${esc(docs.insuranceExpiry??'')}"></label>
+  <label>Licenciamento até<input name="licensingExpiry" type="date" value="${esc(docs.licensingExpiry??'')}"></label>
+  <label>Inspeção até<input name="inspectionExpiry" type="date" value="${esc(docs.inspectionExpiry??'')}"></label>
+  <label>RENAVAM<input name="renavam" value="${esc(docs.renavam??'')}"></label>
+  <label>Chassi<input name="chassis" value="${esc(docs.chassis??'')}"></label>
+  <div class="full actions"><button class="primary">${current.id?'Salvar alterações':'Salvar veículo'}</button>${current.id?'<button type="button" class="secondary" data-vehicle-cancel>Cancelar</button>':''}</div>
+</form>`;}
+
+export function vehiclesHtml(snapshot,user,{editingId=null}={}){const writable=can(user,'vehicle.write'),current=editingId?snapshot.vehicles.find(item=>String(item.id)===String(editingId))??{}:{};const cards=(snapshot.vehicles??[]).map(item=>`<article class="card cloud-entity-card"><div><strong>${esc(item.model)} · ${esc(item.plate)}</strong><small>${esc(item.year||'-')} · ${esc(item.category||'-')} · ${Number(item.mileage||0).toLocaleString('pt-BR')} km</small><small>${money(item.dailyRate)} / diária · compra ${money(item.purchasePrice)}</small><small>${esc(item.availability||'disponivel')} · seguro ${shortDate(item.documents?.insuranceExpiry)} · licenciamento ${shortDate(item.documents?.licensingExpiry)}</small></div>${writable?`<div class="actions"><button type="button" data-vehicle-edit="${esc(item.id)}">Editar</button><button type="button" data-vehicle-delete="${esc(item.id)}" data-version="${Number(item.version||1)}" class="secondary">Excluir</button></div>`:''}</article>`).join('');return `<div class="heading"><div><small>FROTA COMPLETA</small><h1>Frota</h1></div></div><div class="cloud-grid">${writable?formHtml(current):''}<section class="panel"><h2>Veículos</h2><div class="cloud-card-list">${cards||'<div class="empty">Nenhum veículo.</div>'}</div></section></div>`;}
+
+export function bindVehicles(root,{snapshot,user,actions,state}){if(!can(user,'vehicle.write'))return;const form=root.querySelector('#cloud-vehicle-form');if(form)form.onsubmit=async event=>{event.preventDefault();const fd=new FormData(form),id=String(fd.get('id')||''),version=Number(fd.get('version')||0),payload=vehiclePayload(fd,id?{id,version}:{});if(id){const {id:entityId,version:expectedVersion,...data}=payload;await actions.updateEntity('vehicles',entityId,data,expectedVersion);}else{const {version:_,...data}=payload;await actions.createEntity('vehicles',data);}state.editingVehicleId=null;await actions.refresh('vehicles');};
+  root.querySelectorAll('[data-vehicle-edit]').forEach(button=>button.onclick=async()=>{state.editingVehicleId=button.dataset.vehicleEdit;await actions.refresh('vehicles');});
+  root.querySelector('[data-vehicle-cancel]')?.addEventListener('click',async()=>{state.editingVehicleId=null;await actions.refresh('vehicles');});
+  root.querySelectorAll('[data-vehicle-delete]').forEach(button=>button.onclick=async()=>{const item=snapshot.vehicles.find(row=>String(row.id)===String(button.dataset.vehicleDelete));if(!item)return;await actions.deleteEntity('vehicles',item.id,Number(item.version||1));await actions.refresh('vehicles');});
+}

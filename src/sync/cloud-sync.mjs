@@ -1,5 +1,9 @@
 const DEFAULT_CURSOR_KEY='cloud:sync-cursor:v1';
-const ENTITY_COLLECTION=Object.freeze({customer:'customers',vehicle:'vehicles',rental:'rentals',expense:'expenses',inspection:'inspections',maintenance:'maintenance'});
+const ENTITY_COLLECTION=Object.freeze({
+  customer:'customers',vehicle:'vehicles',rental:'rentals',rentalPayment:'rentalPayments',expense:'expenses',ledger:'ledger',
+  inspection:'inspections',inspectionItem:'inspectionItems',maintenance:'maintenance',billingPlan:'billingPlans',billingInstallment:'billingInstallments',
+  billingPayment:'billingPayments',collectionAction:'collectionActions',contractTemplate:'contractTemplates',issuedContract:'issuedContracts',alertState:'alertState'
+});
 
 function cursorValue(value){const parsed=Number(value);return Number.isInteger(parsed)&&parsed>=0?parsed:0;}
 function operationId(value){const text=String(value??'').trim();if(!text)throw new Error('operation_id_required');return text;}
@@ -16,10 +20,15 @@ export function createCloudSync({api,cache,store,cursorKey=DEFAULT_CURSOR_KEY}={
     await cache.upsertResourceItem(collection,{...current,...patch});return true;
   }
   async function applyChange(change){
-    if(change?.entityType==='rentalPayment')return patchCached('rentals',change.payload?.rental);
-    if(change?.entityType==='billingPayment'){
+    if(change?.entityType==='rentalPayment'&&change.payload?.rental){
+      const rentalApplied=await patchCached('rentals',change.payload.rental);
+      if(change.payload?.payment?.id)await cache.upsertResourceItem('rentalPayments',change.payload.payment);
+      return rentalApplied||Boolean(change.payload?.payment?.id);
+    }
+    if(change?.entityType==='billingPayment'&&change.payload?.rental){
       const rentalApplied=await patchCached('rentals',change.payload?.rental),installmentApplied=await patchCached('billingInstallments',change.payload?.installment);
-      return rentalApplied||installmentApplied;
+      if(change.payload?.payment?.id)await cache.upsertResourceItem('billingPayments',change.payload.payment);
+      return rentalApplied||installmentApplied||Boolean(change.payload?.payment?.id);
     }
     const collection=ENTITY_COLLECTION[change?.entityType];if(!collection)return false;
     if(change.operation==='delete'||change.payload?.deleted){await cache.removeResourceItem(collection,change.entityId);return true;}

@@ -8,7 +8,7 @@ const MAX_JSON_BYTES=1_000_000;
 function json(body,status=200,headers={}){return new Response(JSON.stringify(body),{status,headers:{...JSON_HEADERS,...headers}});}
 function operationKey(request){const key=String(request.headers.get('idempotency-key')??'').trim();return key&&key.length<=160?key:null;}
 async function readJson(request){if(!/^application\/json(?:;|$)/i.test(request.headers.get('content-type')??''))throw Object.assign(new Error('content_type'),{status:415});const text=await request.text();if(new TextEncoder().encode(text).byteLength>MAX_JSON_BYTES)throw Object.assign(new Error('payload_too_large'),{status:413});try{return JSON.parse(text||'{}');}catch{throw Object.assign(new Error('invalid_json'),{status:400});}}
-function statusFor(error){if(error?.status)return error.status;if(error?.code==='rental_not_found')return 404;if(error?.code==='inspection_conflict')return 409;if(/required|^invalid_|duplicate_checklist/.test(error?.code??''))return 400;return 500;}
+function statusFor(error){if(error?.status)return error.status;if(error?.code==='rental_not_found')return 404;if(['inspection_conflict','inspection_already_exists','pickup_inspection_not_allowed','return_inspection_not_allowed','pickup_inspection_required'].includes(error?.code))return 409;if(/required|^invalid_|duplicate_checklist|inspection_checklist_incomplete/.test(error?.code??''))return 400;return 500;}
 export function isInspectionOperationRoute(request){return request.method.toUpperCase()==='POST'&&PATH.test(new URL(request.url).pathname);}
 export async function handleInspectionRoute(request,env,_ctx,{auth=null}={}){
   if(!PATH.test(new URL(request.url).pathname)||request.method.toUpperCase()!=='POST')return json({ok:false,error:'not_found'},404);
