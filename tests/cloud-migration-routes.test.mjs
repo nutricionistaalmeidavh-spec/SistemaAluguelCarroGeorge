@@ -22,7 +22,7 @@ test('migração importa dataset local somente quando a nuvem de negócio está 
       customers:[{id:'CUS-LOCAL',installation_id:'OLD',name:'Cliente local',active:1,created_at:'2026-09-01T00:00:00.000Z',updated_at:'2026-09-01T00:00:00.000Z',version:1}],
       vehicles:[{id:'VEI-LOCAL',installation_id:'OLD',model:'Onix',plate:'ABC1D23',mileage:10,daily_rate:120,purchase_price:0,availability:'disponivel',created_at:'2026-09-01T00:00:00.000Z',updated_at:'2026-09-01T00:00:00.000Z',version:1}],
       rentals:[{id:'LOC-LOCAL',installation_id:'OLD',vehicle_id:'VEI-LOCAL',customer_id:'CUS-LOCAL',attendant_id:'USR-LEGACY',pickup_at:'2026-09-20T10:00:00.000Z',return_at:'2026-09-21T10:00:00.000Z',period_mode:'fixed',status:'reserva',daily_rate:120,days:1,total:120,billing_mode:'total',payment_status:'aberto',created_at:'2026-09-01T00:00:00.000Z',updated_at:'2026-09-01T00:00:00.000Z',version:1}]
-    }},ctx.env,{}, {auth:ctx.auth});
+    }}),ctx.env,{}, {auth:ctx.auth});
     assert.equal(response.status,201);
     const payload=await response.json();
     assert.equal(payload.ok,true);
