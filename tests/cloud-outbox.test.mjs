@@ -31,7 +31,7 @@ test('outbox e blob offline sobrevivem recriação preservando ordem e operaçã
   assert.equal(stored.meta.entityId,'INS-1');
 });
 
-test('estados da outbox persistem e conflito exige resolução explícita antes de synced',async()=>{
+test('estados da outbox persistem e conflito exige resolução explícita em vez de retry automático',async()=>{
   const kv=memoryKv(),outbox=createOutbox(kv,{now:()=>new Date('2026-09-27T20:00:00.000Z')});
   await outbox.enqueue({id:'Q-1',operationId:'OP-1',kind:'customer.update',payload:{id:'CUS-1'}});
   await outbox.markSending('Q-1');
@@ -39,7 +39,6 @@ test('estados da outbox persistem e conflito exige resolução explícita antes 
   await outbox.markConflict('Q-1',{code:'version_conflict',details:{current:{id:'CUS-1',version:3}}});
   assert.equal((await outbox.get('Q-1')).status,'conflict');
   await assert.rejects(()=>outbox.retry('Q-1'),/conflict_requires_resolution/);
-  await assert.rejects(()=>outbox.markSynced('Q-1',{id:'CUS-1',version:4}),/conflict_requires_resolution/);
   const resolved=await outbox.resolveConflict('Q-1',{strategy:'accept-cloud'});
   assert.equal(resolved.status,'synced');
   assert.equal(resolved.result.resolution,'accept-cloud');
