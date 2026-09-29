@@ -7,12 +7,12 @@ const admin={id:'USR-A',role:'admin',active:true};
 const attendant={id:'USR-T',role:'atendente',active:true};
 const inspector={id:'USR-V',role:'vistoriador',active:true};
 
-test('PWA aprovada possui os 12 módulos e navegação respeita permissões',()=>{
+test('PWA mantém os 12 módulos operacionais e adiciona Administração somente para admin',()=>{
   assert.deepEqual(PWA_NAV.map(item=>item.id),[
     'overview','customers','vehicles','rentals','inspections','finance',
-    'billing','delinquency','contracts','documents','alerts','maintenance'
+    'billing','delinquency','contracts','documents','alerts','maintenance','administration'
   ]);
-  assert.equal(navigationFor(admin).length,12);
+  assert.equal(navigationFor(admin).length,13);
   assert.equal(navigationFor(attendant).length,12);
   const inspectorIds=navigationFor(inspector).map(item=>item.id);
   assert.deepEqual(inspectorIds,[
@@ -45,19 +45,8 @@ test('snapshot cloud adapta JSON, pagamentos e anexos ao formato usado pelos dom
 });
 
 test('resource map expõe somente leituras necessárias à paridade e não abre escrita genérica de workflow',()=>{
-  const expected=[
-    'ledger','rentalPayments','billingPlans','billingInstallments','collectionActions',
-    'contractTemplates','issuedContracts','inspectionItems','alertState','attachments'
-  ];
-  for(const name of expected){
-    const definition=getResourceDefinition(name);
-    assert.ok(definition,`recurso ausente: ${name}`);
-    assert.ok(definition.collectionMethods.includes('GET'));
-  }
-  for(const name of ['ledger','rentalPayments','billingPlans','collectionActions','contractTemplates','issuedContracts','inspectionItems','alertState','attachments']){
-    const definition=getResourceDefinition(name);
-    assert.deepEqual(definition.collectionMethods,['GET'],`${name} não deve aceitar escrita genérica`);
-    assert.deepEqual(definition.itemMethods,['GET']);
-  }
+  const expected=['ledger','rentalPayments','billingPlans','billingInstallments','collectionActions','contractTemplates','issuedContracts','inspectionItems','alertState','attachments'];
+  for(const name of expected){const definition=getResourceDefinition(name);assert.ok(definition,`recurso ausente: ${name}`);assert.ok(definition.collectionMethods.includes('GET'));}
+  for(const name of ['ledger','rentalPayments','billingPlans','collectionActions','contractTemplates','issuedContracts','inspectionItems','alertState','attachments']){const definition=getResourceDefinition(name);assert.deepEqual(definition.collectionMethods,['GET'],`${name} não deve aceitar escrita genérica`);assert.deepEqual(definition.itemMethods,['GET']);}
   assert.equal(getResourceDefinition('sqlite_master'),null);
 });
