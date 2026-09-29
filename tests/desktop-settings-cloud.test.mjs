@@ -17,7 +17,7 @@ test('desktop gera settings.update versionado quando configurações da empresa 
   const before=snapshot('George',3),after=structuredClone(before);after.settings.companyName='Locadora George';after.settings.phone='16999999999';
   const operations=buildCloudOperations(before,after),settings=operations.find(item=>item.kind==='settings.update');
   assert.ok(settings,'settings.update ausente');
-  assert.equal(settings.payload.id,'INST-SET');
+  assert.equal(settings.payload.id,undefined,'tenant deve vir da credencial autenticada, não do payload');
   assert.equal(settings.payload.expectedVersion,3);
   assert.deepEqual(settings.payload.data,{companyName:'Locadora George',phone:'16999999999'});
   assert.match(settings.operationId,/^desktop:settings\.update:/);
@@ -37,7 +37,7 @@ test('sync/operations aplica settings.update com conflito otimista e publica del
     const now='2026-09-29T20:00:00.000Z';
     db.sqlite.prepare('INSERT INTO installations (id,name,created_at,updated_at) VALUES (?,?,?,?)').run(admin.installationId,'George',now,now);
     db.sqlite.prepare('INSERT INTO app_settings (installation_id,settings_json,updated_at,version,updated_by_device) VALUES (?,?,?,?,?)').run(admin.installationId,JSON.stringify({companyName:'George',phone:''}),now,3,'WEB-OLD');
-    const operation={operationId:'desktop:settings.update:INST-SET:v3:test',kind:'settings.update',baseVersion:3,payload:{id:admin.installationId,data:{companyName:'Locadora George',phone:'16999999999'},expectedVersion:3}};
+    const operation={operationId:'desktop:settings.update:v3:test',kind:'settings.update',baseVersion:3,payload:{data:{companyName:'Locadora George',phone:'16999999999'},expectedVersion:3}};
     const response=await handleSyncRoute(request(operation),{DB:db},{},{auth:admin});
     assert.equal(response.status,200,await response.text());
     const row=db.sqlite.prepare('SELECT settings_json,version,updated_by_device FROM app_settings WHERE installation_id=?').get(admin.installationId);
