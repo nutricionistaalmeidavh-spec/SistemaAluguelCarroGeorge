@@ -13,7 +13,8 @@
   "electron": {
     "entry": "../..",
     "env": {
-      "ELECTRON_ENABLE_LOGGING": "1"
+      "ELECTRON_ENABLE_LOGGING": "1",
+      "LOCADORA_DISABLE_CLOUD_AUTH": "1"
     },
     "args": [
       "--no-sandbox",

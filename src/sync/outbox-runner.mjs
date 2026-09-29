@@ -15,6 +15,10 @@ async function dispatch(item,{api,blobs}){
     const stored=await blobs.get(attachmentId);if(!stored)throw Object.assign(new Error('offline_blob_missing'),{status:422});const meta=stored.meta??{};
     return api.uploadAttachment(attachmentId,{entityType:meta.entityType,entityId:meta.entityId,mimeType:stored.blob.type||stored.type||meta.mimeType,body:stored.blob,fileName:meta.fileName??''},{operationId});
   }
+  if(kind==='attachment.delete'){
+    const attachmentId=String(payload.attachmentId||payload.id||'');if(!attachmentId)throw Object.assign(new Error('attachment_id_required'),{status:400});
+    await api.deleteAttachment(attachmentId,{operationId});return{id:attachmentId,deleted:true};
+  }
   const [entity,action]=String(kind).split('.'),resource=singularResource(kind);
   if(['create','update','delete'].includes(action)&&typeof api.pushSyncOperations==='function'){
     const operation={operationId,kind,baseVersion:null,payload:{}};

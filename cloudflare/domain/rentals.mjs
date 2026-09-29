@@ -7,6 +7,7 @@ const MAX_DATE='9999-12-31T23:59:59.999Z';
 function fail(code,message=code){const error=new Error(message);error.code=code;throw error;}
 function round(value){return Math.round((Number(value)+Number.EPSILON)*100)/100;}
 function required(value,code){const text=String(value??'').trim();if(!text)fail(code);return text;}
+function entityId(value,prefix){const text=String(value??'').trim();if(text&&/^[A-Za-z0-9._:-]{1,120}$/.test(text))return text;return `${prefix}-${crypto.randomUUID()}`;}
 function addDaysIso(value,days){const time=new Date(value).getTime();if(!Number.isFinite(time))fail('invalid_period');return new Date(time+(Number(days)||0)*DAY).toISOString();}
 function parsePeriod(input){
   const pickupAt=required(input.pickupAt,'pickup_required'),periodMode=input.periodMode==='continuous'?'continuous':'fixed';
@@ -27,7 +28,7 @@ export async function createRentalOperation(context,input,operationId){
   if(!vehicle||vehicle.availability==='manutencao')fail('vehicle_unavailable');
   const period=parsePeriod(input),dailyRate=round(input.dailyRate);if(!(dailyRate>0))fail('invalid_daily_rate');
   const billingMode=input?.billingMode==='daily'?'daily':'total';if(period.periodMode==='continuous'&&billingMode!=='daily')fail('daily_schedule_required');
-  const total=round(period.days*dailyRate),now=new Date().toISOString(),executionId=`EXE-${crypto.randomUUID()}`,rentalId=`LOC-${crypto.randomUUID()}`,ledgerId=`FIN-${crypto.randomUUID()}`,deviceId=auth.deviceId??null;
+  const total=round(period.days*dailyRate),now=new Date().toISOString(),executionId=`EXE-${crypto.randomUUID()}`,rentalId=entityId(input?.id,'LOC'),ledgerId=`FIN-${crypto.randomUUID()}`,deviceId=auth.deviceId??null;
   const planId=billingMode==='daily'?`COB-${crypto.randomUUID()}`:null,installmentIds=billingMode==='daily'?Array.from({length:period.days},()=>`PAR-${crypto.randomUUID()}`):[];
   const result={id:rentalId,customerId,vehicleId,pickupAt:period.pickupAt,returnAt:period.returnAt,periodMode:period.periodMode,status:'reserva',priority:input.priority??'Media',notes:input.notes??'',dailyRate,days:period.days,total,billingMode,paymentStatus:'aberto',billingPlanId:planId,installmentIds,version:1,createdAt:now,updatedAt:now,updatedByDevice:deviceId};
   const receipt=beginOperationStatement(db,{installationId,operationId:op,kind:'rental.create',executionId,createdAt:now});

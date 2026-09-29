@@ -9,11 +9,12 @@ function setup(){const db=new FakeD1(),ids=seedOperationFixture(db);const auth={
 test('POST /rentals exige idempotency key e cria pela operação transacional',async()=>{
   const ctx=setup();
   try{
-    const body={customerId:ctx.customerId,vehicleId:ctx.vehicleId,pickupAt:'2026-12-01T10:00:00.000Z',returnAt:'2026-12-03T10:00:00.000Z',dailyRate:120};
+    const body={id:'LOC-DESKTOP-1',customerId:ctx.customerId,vehicleId:ctx.vehicleId,pickupAt:'2026-12-01T10:00:00.000Z',returnAt:'2026-12-03T10:00:00.000Z',dailyRate:120};
     const missing=await handleRentalRoute(req('/api/v1/rentals',{key:null,body}),ctx.env,{}, {auth:ctx.auth});
     assert.equal(missing.status,400);assert.equal(ctx.db.scalar('SELECT COUNT(*) FROM rentals'),0);
     const created=await handleRentalRoute(req('/api/v1/rentals',{key:'OP-HTTP-RENT',body}),ctx.env,{}, {auth:ctx.auth});
     assert.equal(created.status,201);const payload=await created.json();assert.equal(payload.ok,true);assert.equal(payload.item.status,'reserva');
+    assert.equal(payload.item.id,'LOC-DESKTOP-1');
     assert.equal(ctx.db.scalar('SELECT COUNT(*) FROM rentals'),1);
   }finally{ctx.db.close();}
 });
@@ -23,11 +24,12 @@ test('POST /rentals/:id/payments repete a mesma resposta lógica sem duplicar pa
   try{
     const create=await handleRentalRoute(req('/api/v1/rentals',{key:'OP-HTTP-BASE',body:{customerId:ctx.customerId,vehicleId:ctx.vehicleId,pickupAt:'2026-12-10T10:00:00.000Z',returnAt:'2026-12-12T10:00:00.000Z',dailyRate:100}}),ctx.env,{}, {auth:ctx.auth});
     const rental=(await create.json()).item;
-    const paymentReq=()=>req(`/api/v1/rentals/${encodeURIComponent(rental.id)}/payments`,{key:'OP-HTTP-PAY',body:{amount:75,method:'pix'}});
+    const paymentReq=()=>req(`/api/v1/rentals/${encodeURIComponent(rental.id)}/payments`,{key:'OP-HTTP-PAY',body:{id:'PAG-DESKTOP-1',amount:75,method:'pix'}});
     const one=await handleRentalRoute(paymentReq(),ctx.env,{}, {auth:ctx.auth});
     const two=await handleRentalRoute(paymentReq(),ctx.env,{}, {auth:ctx.auth});
     assert.equal(one.status,201);assert.equal(two.status,200);
-    assert.equal((await one.json()).item.id,(await two.json()).item.id);
+    assert.equal((await one.json()).item.id,'PAG-DESKTOP-1');
+    assert.equal((await two.json()).item.id,'PAG-DESKTOP-1');
     assert.equal(ctx.db.scalar('SELECT COUNT(*) FROM rental_payments'),1);
   }finally{ctx.db.close();}
 });

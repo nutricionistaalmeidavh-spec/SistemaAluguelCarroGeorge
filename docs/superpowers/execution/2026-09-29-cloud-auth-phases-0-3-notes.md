@@ -1,0 +1,1 @@
+Pre-flight: existing cloud auth, device credentials, D1/R2, desktop replica, and LAN fallback share interfaces across phases 1–3. Implementation will reuse existing Worker auth/session/device routes and replica agent rather than introducing parallel auth or sync protocols.

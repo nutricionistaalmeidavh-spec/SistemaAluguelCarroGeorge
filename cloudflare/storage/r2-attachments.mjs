@@ -1,4 +1,5 @@
 import { canCloud } from '../auth/permissions.mjs';
+import { appendChangeStatement } from '../sync/change-log.mjs';
 
 const MAX_ATTACHMENT_BYTES=8*1024*1024;
 const MIME_EXT=Object.freeze({
@@ -60,7 +61,7 @@ export function buildAttachmentObjectKey({installationId,entityType,entityId,att
 
 export async function putAttachment(env,auth,meta,body){
   requireAuth(auth);
-  if(!env?.DB?.prepare)fail('database_unavailable');
+  if(!env?.DB?.prepare||typeof env.DB.batch!=='function')fail('database_unavailable');
   if(!env?.ATTACHMENTS?.put)fail('r2_unavailable');
   const attachmentId=segment(meta?.id,'attachment_id_invalid');
   const entityType=segment(meta?.entityType,'entity_type_invalid').toLowerCase();
@@ -87,16 +88,20 @@ export async function putAttachment(env,auth,meta,body){
     sha256:digest
   });
   const now=new Date().toISOString();
+  const result={id:attachmentId,installationId:auth.installationId,entityType,entityId,objectKey,mimeType,sizeBytes:actualSize,sha256,status:'ready',storageBackend:'r2',createdAt:now,createdBy:auth.userId};
   try{
-    await env.DB.prepare(`INSERT INTO attachments
+    const insert=env.DB.prepare(`INSERT INTO attachments
       (id, installation_id, entity_type, entity_id, local_path, mime_type, size_bytes, sha256, created_at, created_by, status, updated_at, version, updated_by_device, object_key, storage_backend)
       VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, 'ready', ?, 1, ?, ?, 'r2')`)
-      .bind(attachmentId,auth.installationId,entityType,entityId,mimeType,actualSize,sha256,now,auth.userId,now,auth.deviceId??null,objectKey).run();
+      .bind(attachmentId,auth.installationId,entityType,entityId,mimeType,actualSize,sha256,now,auth.userId,now,auth.deviceId??null,objectKey);
+    const change=appendChangeStatement(env.DB,{operationId:`attachment:${attachmentId}:create:${sha256.slice(0,24)}`,installationId:auth.installationId,deviceId:auth.deviceId??null,entityType:'attachment',entityId:attachmentId,operation:'create',entityVersion:1,payload:result,createdAt:now,guardSql:'EXISTS (SELECT 1 FROM attachments WHERE installation_id = ? AND id = ? AND deleted_at IS NULL)',guardParams:[auth.installationId,attachmentId]});
+    const batch=await env.DB.batch([insert,change]);
+    if(Number(batch?.[0]?.meta?.changes??0)!==1||Number(batch?.[1]?.meta?.changes??0)!==1)fail('attachment_metadata_write_failed');
   }catch(error){
     try{await env.ATTACHMENTS.delete(objectKey);}catch(cleanupError){error.orphanKey=objectKey;error.cleanupError=cleanupError;}
     throw error;
   }
-  return{id:attachmentId,installationId:auth.installationId,entityType,entityId,objectKey,mimeType,sizeBytes:actualSize,sha256,status:'ready',storageBackend:'r2',createdAt:now,createdBy:auth.userId};
+  return result;
 }
 
 export async function getAttachment(env,auth,attachmentId){
@@ -111,14 +116,18 @@ export async function getAttachment(env,auth,attachmentId){
 }
 
 export async function deleteAttachment(env,auth,attachmentId){
-  requireAuth(auth);if(!env?.DB?.prepare)fail('database_unavailable');if(!env?.ATTACHMENTS?.delete)fail('r2_unavailable');
+  requireAuth(auth);if(!env?.DB?.prepare||typeof env.DB.batch!=='function')fail('database_unavailable');if(!env?.ATTACHMENTS?.delete)fail('r2_unavailable');
   const id=segment(attachmentId,'attachment_id_invalid');
-  const row=await env.DB.prepare(`SELECT id, entity_type, object_key FROM attachments WHERE installation_id = ? AND id = ? AND deleted_at IS NULL LIMIT 1`).bind(auth.installationId,id).first();
+  const row=await env.DB.prepare(`SELECT id, entity_type, entity_id, object_key, version, deleted_at FROM attachments WHERE installation_id = ? AND id = ? LIMIT 1`).bind(auth.installationId,id).first();
   if(!row)fail('attachment_not_found');requirePermission(auth,row.entity_type,'write');
+  if(row.deleted_at)return{ok:true,id,alreadyDeleted:true};
   if(row.object_key)await env.ATTACHMENTS.delete(row.object_key);
-  const now=new Date().toISOString();
-  await env.DB.prepare(`UPDATE attachments SET status = 'deleted', deleted_at = ?, updated_at = ?, version = version + 1, updated_by_device = ?
-    WHERE installation_id = ? AND id = ? AND deleted_at IS NULL`).bind(now,now,auth.deviceId??null,auth.installationId,id).run();
+  const now=new Date().toISOString(),nextVersion=Number(row.version||1)+1,payload={id,entityType:row.entity_type,entityId:row.entity_id,deleted:true,version:nextVersion,updatedAt:now,updatedByDevice:auth.deviceId??null};
+  const update=env.DB.prepare(`UPDATE attachments SET status = 'deleted', deleted_at = ?, updated_at = ?, version = version + 1, updated_by_device = ?
+    WHERE installation_id = ? AND id = ? AND deleted_at IS NULL`).bind(now,now,auth.deviceId??null,auth.installationId,id);
+  const change=appendChangeStatement(env.DB,{operationId:`attachment:${id}:delete:v${nextVersion}`,installationId:auth.installationId,deviceId:auth.deviceId??null,entityType:'attachment',entityId:id,operation:'delete',baseVersion:nextVersion-1,entityVersion:nextVersion,payload,createdAt:now,guardSql:'EXISTS (SELECT 1 FROM attachments WHERE installation_id = ? AND id = ? AND deleted_at = ?)',guardParams:[auth.installationId,id,now]});
+  const batch=await env.DB.batch([update,change]);
+  if(Number(batch?.[0]?.meta?.changes??0)!==1||Number(batch?.[1]?.meta?.changes??0)!==1)fail('attachment_delete_conflict');
   return{ok:true,id};
 }
 
