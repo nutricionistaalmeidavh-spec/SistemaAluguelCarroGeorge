@@ -12,7 +12,7 @@ function setup(){
 }
 const bytes=new TextEncoder().encode('fake-image-binary');
 
-test('upload gera chave R2 isolada por instalação e ignora nome malicioso',async()=>{
+test('upload gera chave R2 isolada por instalação e registra delta para as réplicas',async()=>{
   const ctx=setup();try{
     const meta=await putAttachment(ctx.env,ctx.auth,{id:'ATT-1',entityType:'inspection',entityId:'INSP-1',mimeType:'image/jpeg',originalName:'../../segredo.exe'},bytes);
     assert.equal(meta.objectKey,`installations/${ctx.installationId}/inspection/INSP-1/ATT-1.jpg`);
@@ -21,6 +21,9 @@ test('upload gera chave R2 isolada por instalação e ignora nome malicioso',asy
     assert.match(meta.sha256,/^[0-9a-f]{64}$/);
     const row=ctx.db.sqlite.prepare('SELECT object_key, storage_backend, sha256, mime_type, size_bytes, local_path FROM attachments WHERE installation_id=? AND id=?').get(ctx.installationId,'ATT-1');
     assert.equal(row.object_key,meta.objectKey);assert.equal(row.storage_backend,'r2');assert.equal(row.sha256,meta.sha256);assert.equal(row.mime_type,'image/jpeg');assert.equal(row.size_bytes,bytes.byteLength);assert.equal(row.local_path,'');
+    const change=ctx.db.sqlite.prepare('SELECT entity_type, entity_id, operation, payload_json FROM sync_changes WHERE installation_id=? AND entity_id=? ORDER BY sequence DESC LIMIT 1').get(ctx.installationId,'ATT-1');
+    assert.equal(change.entity_type,'attachment');assert.equal(change.entity_id,'ATT-1');assert.equal(change.operation,'create');
+    const payload=JSON.parse(change.payload_json);assert.equal(payload.id,'ATT-1');assert.equal(payload.sha256,meta.sha256);assert.equal(payload.entityType,'inspection');
   }finally{ctx.db.close();}
 });
 
@@ -59,13 +62,18 @@ test('cleanup identifica objetos órfãos por prefixo da instalação',async()=>
   }finally{ctx.db.close();}
 });
 
-test('delete exige metadata da instalação e remove D1 + R2 sem bucket público',async()=>{
+test('delete registra delta, é idempotente e remove D1 + R2 sem bucket público',async()=>{
   const ctx=setup();try{
     await putAttachment(ctx.env,ctx.auth,{id:'ATT-DEL',entityType:'inspection',entityId:'INSP-4',mimeType:'image/png'},bytes);
     const key=`installations/${ctx.installationId}/inspection/INSP-4/ATT-DEL.png`;
-    await deleteAttachment(ctx.env,ctx.auth,'ATT-DEL');
-    assert.equal(await ctx.bucket.head(key),null);
+    const first=await deleteAttachment(ctx.env,ctx.auth,'ATT-DEL');
+    assert.equal(first.ok,true);assert.equal(await ctx.bucket.head(key),null);
     const row=ctx.db.sqlite.prepare('SELECT status, deleted_at FROM attachments WHERE installation_id=? AND id=?').get(ctx.installationId,'ATT-DEL');
     assert.equal(row.status,'deleted');assert.ok(row.deleted_at);
+    const changes=ctx.db.sqlite.prepare('SELECT operation,payload_json FROM sync_changes WHERE installation_id=? AND entity_id=? ORDER BY sequence').all(ctx.installationId,'ATT-DEL');
+    assert.equal(changes.length,2);assert.equal(changes[1].operation,'delete');assert.equal(JSON.parse(changes[1].payload_json).deleted,true);
+    const second=await deleteAttachment(ctx.env,ctx.auth,'ATT-DEL');
+    assert.equal(second.ok,true);assert.equal(second.alreadyDeleted,true);
+    assert.equal(ctx.db.sqlite.prepare('SELECT COUNT(*) AS n FROM sync_changes WHERE installation_id=? AND entity_id=?').get(ctx.installationId,'ATT-DEL').n,2);
   }finally{ctx.db.close();}
 });
