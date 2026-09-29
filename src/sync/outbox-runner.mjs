@@ -3,13 +3,17 @@ function status(error){return Number(error?.status)||0;}
 function retryable(error){const value=status(error);return !value||value===408||value===425||value===429||value>=500;}
 function retryAt(now,item,{baseRetryMs=1_000,maxRetryMs=60_000}={}){const attempts=Math.max(1,Number(item?.attempts)||1),delay=Math.min(Math.max(0,Number(maxRetryMs)||0),Math.max(0,Number(baseRetryMs)||0)*(2**Math.max(0,attempts-1)));return new Date(now.getTime()+delay).toISOString();}
 function due(item,now){if(item.status==='pending')return true;if(item.status!=='failed'||!item.nextRetryAt)return false;return new Date(item.nextRetryAt).getTime()<=now.getTime();}
+const PARITY_COMMANDS=new Set(['expense.create','expense.update','expense.delete','billing.plan.create','collectionAction.create','maintenance.create','maintenance.start','maintenance.complete','contract.template.create','contract.template.update','contract.template.duplicate','contract.template.deactivate','contract.issue','alert.acknowledge','alert.dismiss']);
 
 async function dispatch(item,{api,blobs}){
   const payload=item.payload??{},operationId=item.operationId,kind=item.kind;
   if(kind==='rental.create')return api.createRental(payload,{operationId});
+  if(kind==='rental.advance'){const {rentalId,...data}=payload;if(!rentalId)throw Object.assign(new Error('rental_id_required'),{status:400});return api.advanceRental(rentalId,data,{operationId});}
+  if(kind==='rental.closeContinuous'){const {rentalId,...data}=payload;if(!rentalId)throw Object.assign(new Error('rental_id_required'),{status:400});return api.closeContinuousRental(rentalId,data,{operationId});}
   if(kind==='rental.payment'){const {rentalId,...data}=payload;if(!rentalId)throw Object.assign(new Error('rental_id_required'),{status:400});return api.payRental(rentalId,data,{operationId});}
   if(kind==='billing.payment'){const {installmentId,...data}=payload;if(!installmentId)throw Object.assign(new Error('installment_id_required'),{status:400});return api.payInstallment(installmentId,data,{operationId});}
   if(kind==='inspection.create')return api.createInspection(payload,{operationId});
+  if(PARITY_COMMANDS.has(kind))return api.command(kind,payload,{operationId});
   if(kind==='attachment.upload'){
     if(!blobs)throw new Error('blob_store_required');const attachmentId=String(payload.attachmentId||'');if(!attachmentId)throw Object.assign(new Error('attachment_id_required'),{status:400});
     const stored=await blobs.get(attachmentId);if(!stored)throw Object.assign(new Error('offline_blob_missing'),{status:422});const meta=stored.meta??{};
