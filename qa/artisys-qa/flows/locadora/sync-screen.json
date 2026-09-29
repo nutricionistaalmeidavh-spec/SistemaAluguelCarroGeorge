@@ -1,5 +1,5 @@
 {
-  "name": "sync-screen",
+  "name": "cloud-status",
   "steps": [
     {
       "action": "fill",
@@ -17,17 +17,13 @@
       "name": "Entrar"
     },
     {
-      "action": "click",
-      "selector": "[data-nav=\"sync\"]"
-    },
-    {
       "action": "expectText",
-      "selector": "#view",
-      "expected": "PC"
+      "selector": ".topbar",
+      "expected": "Nuvem"
     },
     {
       "action": "screenshot",
-      "name": "sync-screen",
+      "name": "cloud-status",
       "fullPage": true
     }
   ]
