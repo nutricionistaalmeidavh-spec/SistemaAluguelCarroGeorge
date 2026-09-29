@@ -167,10 +167,11 @@ test('fase 6: API client exclui attachment autenticado usando DELETE e chave ide
 test('fase 6: desktop enfileira upload/delete de attachment e expõe diagnóstico/flush cloud sem credencial no renderer',()=>{
   const main=fs.readFileSync(new URL('../electron/main.cjs',import.meta.url),'utf8');
   const preload=fs.readFileSync(new URL('../electron/preload.cjs',import.meta.url),'utf8');
-  assert.match(main,/attachment\.upload/);
-  assert.match(main,/attachment\.delete/);
-  assert.match(main,/desktop:attachment\.upload:/);
-  assert.match(main,/desktop:attachment\.delete:/);
+  assert.match(main,/function attachmentOperation\(kind,id\)/);
+  assert.match(main,/kind:`attachment\.\$\{kind\}`/);
+  assert.match(main,/operationId:`desktop:attachment\.\$\{kind\}:\$\{attachmentId\}`/);
+  assert.match(main,/attachmentOperation\(['"]upload['"]/);
+  assert.match(main,/attachmentOperation\(['"]delete['"]/);
   assert.match(main,/locadora:cloud-sync:status/);
   assert.match(main,/locadora:cloud-sync:sync-now/);
   assert.match(preload,/cloudSyncStatus/);
