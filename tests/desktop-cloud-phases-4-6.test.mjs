@@ -124,3 +124,16 @@ test('fase 5: repository.reload troca o cache do renderer pelo snapshot canônic
     assert.equal(repository.load().updatedAt,'2026-09-29T12:30:00.000Z');
   }finally{globalThis.window=previousWindow;}
 });
+
+test('fase 5: main→preload→renderer propaga réplica aplicada e recarrega SQLite sem reiniciar',()=>{
+  const main=fs.readFileSync(new URL('../electron/main.cjs',import.meta.url),'utf8');
+  const preload=fs.readFileSync(new URL('../electron/preload.cjs',import.meta.url),'utf8');
+  const app=fs.readFileSync(new URL('../src/app.mjs',import.meta.url),'utf8');
+  assert.match(main,/onSynced\s*:/);
+  assert.match(main,/webContents\.send\(['"]locadora:replica:changed['"]/);
+  assert.match(preload,/onReplicaChanged/);
+  assert.match(preload,/ipcRenderer\.on\(['"]locadora:replica:changed['"]/);
+  assert.match(preload,/removeListener\(['"]locadora:replica:changed['"]/);
+  assert.match(app,/onReplicaChanged/);
+  assert.match(app,/repository\.reload\(\)/);
+});
