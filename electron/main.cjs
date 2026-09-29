@@ -71,6 +71,7 @@ function encryptSecret(value){if(!safeStorage.isEncryptionAvailable())throw new 
 function decryptSecret(value){if(!value||!safeStorage.isEncryptionAvailable())return null;try{return safeStorage.decryptString(Buffer.from(String(value),'base64'));}catch{return null;}}
 function replicaConfig(){const value=store?.getJson(REPLICA_CONFIG_KEY,null);if(!value?.baseUrl||!value?.deviceTokenEncrypted)return null;const deviceToken=decryptSecret(value.deviceTokenEncrypted);return deviceToken?{baseUrl:value.baseUrl,deviceToken}:null;}
 function initializeCloudAuth(){cloudAuth=createDesktopCloudAuth({baseUrl:CLOUD_BASE_URL,installationId:INSTALLATION_ID,deviceId:DESKTOP_DEVICE_ID,store,safeStorage,fetchImpl:globalThis.fetch});return cloudAuth;}
+function notifyReplicaChanged(status){for(const win of BrowserWindow.getAllWindows())if(!win.isDestroyed())win.webContents.send('locadora:replica:changed',status);}
 
 async function startReplica(){
   await replicaAgent?.stop?.();replicaAgent=null;
@@ -78,7 +79,7 @@ async function startReplica(){
   const config=cloudAuth?.replicaCredential?.()??replicaConfig();
   if(!config)return false;
   const client=createReplicaClient({baseUrl:config.baseUrl,sessionProvider:async()=>config.cookie?{cookie:config.cookie}:{deviceToken:config.deviceToken}}),local=createSqliteReplicaStore({relationalStore,attachmentStore,installationId:INSTALLATION_ID,deviceId:DESKTOP_DEVICE_ID});
-  replicaAgent=new ReplicaAgent({client,local,stateStore:replicaStateStore,intervalMs:60000});
+  replicaAgent=new ReplicaAgent({client,local,stateStore:replicaStateStore,intervalMs:60000,onSynced:status=>notifyReplicaChanged(status)});
   try{await replicaAgent.syncNow();}catch(error){console.warn('[locadora] réplica inicial indisponível:',error?.message);}
   replicaAgent.start({immediate:false});
   return true;
