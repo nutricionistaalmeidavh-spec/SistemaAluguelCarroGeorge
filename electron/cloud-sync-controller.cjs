@@ -20,10 +20,9 @@ function createDesktopCloudSyncController({outbox,runOutbox,api,blobs=null,authe
   async function doFlush(){
     if(!authenticated())return{skipped:'unauthenticated',summary:await outbox.summary()};
     const result=await runOutbox({outbox,api,blobs});
-    if(Number(result?.synced||0)>0){
-      try{await pull();}catch(error){logger?.warn?.('cloud sync pull failed',error);}
-    }
-    return{...result,summary:await outbox.summary()};
+    let pulled=null;
+    try{pulled=await pull();}catch(error){logger?.warn?.('cloud sync pull failed',error);}
+    return{...result,pulled,summary:await outbox.summary()};
   }
 
   async function flush(){
@@ -31,12 +30,14 @@ function createDesktopCloudSyncController({outbox,runOutbox,api,blobs=null,authe
     inFlight=doFlush().finally(()=>{inFlight=null;});
     return inFlight;
   }
+  async function conflicts(){return outbox.list({statuses:['conflict']});}
+  async function resolveConflict(id,{strategy='accept-cloud'}={}){
+    const item=await outbox.resolveConflict(id,{strategy});
+    if(strategy==='accept-cloud'&&authenticated())await pull();
+    return{item,summary:await outbox.summary()};
+  }
 
-  return Object.freeze({
-    enqueueOperations,
-    flush,
-    status:()=>outbox.summary()
-  });
+  return Object.freeze({enqueueOperations,flush,conflicts,resolveConflict,status:()=>outbox.summary()});
 }
 
 module.exports={createDesktopCloudSyncController};

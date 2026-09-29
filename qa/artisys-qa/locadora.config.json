@@ -33,6 +33,6 @@
     "daily-billing": "flows/locadora/daily-billing.json",
     "backup-restore": "flows/locadora/backup-restore.json",
     "fleet-permissions": "flows/locadora/fleet-permissions.json",
-    "sync-screen": "flows/locadora/sync-screen.json"
+    "cloud-status": "flows/locadora/sync-screen.json"
   }
 }

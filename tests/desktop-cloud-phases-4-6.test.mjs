@@ -81,12 +81,12 @@ test('fase 4: controller deduplica operationId já durável inclusive após falh
   assert.equal((await controller.status()).total,2);
 });
 
-test('fase 4: processo principal persiste snapshot antes de enfileirar e entregar operações cloud',()=>{
+test('fase 4: processo principal calcula delta, persiste localmente e só então enfileira cloud',()=>{
   const source=fs.readFileSync(new URL('../electron/main.cjs',import.meta.url),'utf8');
   assert.match(source,/buildCloudOperations/);
   assert.match(source,/createDesktopCloudSyncController/);
   assert.match(source,/createOutbox/);
-  assert.match(source,/relationalStore\.saveSnapshot\(snapshot\)[\s\S]{0,700}enqueueOperations\(buildCloudOperations/);
+  assert.match(source,/operations=buildCloudOperations\(before,snapshot\)[\s\S]{0,500}relationalStore\.saveSnapshot\(snapshot\)[\s\S]{0,700}enqueueOperations\(operations\)/);
   assert.match(source,/cloudAuth\?\.status\?\.\(\)\.authenticated/);
 });
 

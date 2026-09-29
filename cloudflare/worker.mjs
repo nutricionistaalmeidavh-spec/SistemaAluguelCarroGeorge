@@ -8,6 +8,7 @@ import { handleSyncRoute,isSyncRoute } from './api/sync-routes.mjs';
 import { handleDeviceManagementRoute,isDeviceManagementRoute } from './api/device-routes.mjs';
 import { handleBackupRoute,isBackupRoute } from './api/backup-routes.mjs';
 import { handleReplicaRoute,isReplicaRoute } from './api/replica-routes.mjs';
+import { handleMigrationRoute,isMigrationRoute } from './api/migration-routes.mjs';
 import { resolveSession } from './auth/session.mjs';
 import { resolveDeviceCredential } from './auth/device-credentials.mjs';
 import { throttleIdentity,checkLoginThrottle,recordLoginFailure,clearLoginThrottle } from './auth/login-throttle.mjs';
@@ -32,6 +33,7 @@ function requiresGeneration(pathname,method){
   if(pathname.startsWith(`${API_PREFIX}/devices`))return false;
   if(pathname.startsWith(`${API_PREFIX}/sessions`))return false;
   if(pathname.startsWith(`${API_PREFIX}/backups`))return false;
+  if(pathname.startsWith(`${API_PREFIX}/migration`))return false;
   return true;
 }
 async function generationFor(request,env,auth){
@@ -72,6 +74,7 @@ async function dispatch(request,env,ctx){
     }
     if(isDeviceManagementRoute(request))return handleDeviceManagementRoute(request,env,ctx,{auth});
     if(isBackupRoute(request))return handleBackupRoute(request,env,ctx,{auth});
+    if(isMigrationRoute(request))return handleMigrationRoute(request,env,ctx,{auth});
     if(isReplicaRoute(request))return handleReplicaRoute(request,env,ctx,{auth});
     if(isAttachmentRoute(request))return withGeneration(await handleAttachmentRoute(request,env,ctx,{auth}),generation);
     if(isRentalOperationRoute(request))return withGeneration(await handleRentalRoute(request,env,ctx,{auth}),generation);
