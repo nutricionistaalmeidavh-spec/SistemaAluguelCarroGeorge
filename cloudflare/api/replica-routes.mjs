@@ -8,7 +8,7 @@ const PREFIX=`${API_PREFIX}/replica`,HEADERS={'content-type':'application/json; 
   attachment:['attachments'],inspection:['inspections','inspection_items','vehicles'],inspectionItem:['inspection_items'],
   maintenance:['maintenance','vehicles','expenses','ledger'],expense:['expenses','ledger'],ledger:['ledger'],
   billingPlan:['billing_plans','billing_installments','ledger'],billingInstallment:['billing_installments','ledger'],collectionAction:['collection_actions'],
-  contractTemplate:['contract_templates'],issuedContract:['issued_contracts'],contract:['issued_contracts'],alertState:['alert_state']
+  contractTemplate:['contract_templates'],issuedContract:['issued_contracts'],contract:['issued_contracts'],alertState:['alert_state'],appSettings:['app_settings']
 });
 function json(body,status=200){return new Response(JSON.stringify(body),{status,headers:HEADERS});}
 async function installation(db,id){return db.prepare('SELECT * FROM installations WHERE id=? AND deleted_at IS NULL LIMIT 1').bind(id).first();}
