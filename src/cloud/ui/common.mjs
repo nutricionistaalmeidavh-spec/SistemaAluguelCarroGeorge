@@ -25,11 +25,12 @@ function list(value){return Array.isArray(value)?structuredClone(value):[];}
 function group(items,key){const result=new Map();for(const item of list(items)){const id=String(item?.[key]??'');if(!id)continue;if(!result.has(id))result.set(id,[]);result.get(id).push(item);}return result;}
 
 export function buildCloudSnapshot(data={}){
-  const rentalPayments=group(data.rentalPayments,'rentalId'),inspectionItems=group(data.inspectionItems,'inspectionId');
+  const rentalPayments=group(data.rentalPayments,'rentalId'),inspectionItems=group(data.inspectionItems,'inspectionId'),billingPayments=group(data.billingPayments,'installmentId'),inspectionAttachments=group(list(data.attachments).filter(item=>item?.entityType==='inspection'),'entityId');
   const customers=list(data.customers).map(item=>({...item,driverLicense:{number:'',category:'',expiry:'',...parse(item.driverLicenseJson,{})}}));
   const vehicles=list(data.vehicles).map(item=>({...item,documents:{insuranceExpiry:'',licensingExpiry:'',inspectionExpiry:'',renavam:'',chassis:'',...parse(item.documentsJson,{})}}));
   const rentals=list(data.rentals).map(item=>({...item,payments:list(rentalPayments.get(String(item.id)))}));
-  const inspections=list(data.inspections).map(item=>({...item,damages:parse(item.damagesJson,[]),checklist:list(inspectionItems.get(String(item.id))).map(row=>({id:String(row.itemKey??row.id??''),label:String(row.label??''),done:Boolean(row.done),evidence:row.evidence??null}))}));
+  const inspections=list(data.inspections).map(item=>({...item,damages:parse(item.damagesJson,[]),checklist:list(inspectionItems.get(String(item.id))).map(row=>({id:String(row.itemKey??row.id??''),label:String(row.label??''),done:Boolean(row.done),evidence:row.evidence??null})),photos:list(inspectionAttachments.get(String(item.id))).map(row=>({attachmentId:String(row.id),name:String(row.originalName??row.fileName??row.id),mimeType:String(row.mimeType??''),sizeBytes:Number(row.sizeBytes||0),sha256:String(row.sha256??'')}))}));
+  const installments=list(data.billingInstallments).map(item=>({...item,payments:list(billingPayments.get(String(item.id)))}));
   const alertRow=list(data.alertState)[0],settingsRow=list(data.appSettings)[0];
   return{
     version:4,
@@ -37,7 +38,7 @@ export function buildCloudSnapshot(data={}){
     expenses:list(data.expenses),inspections,maintenance:list(data.maintenance),
     ledger:list(data.ledger),audit:list(data.audit),
     contractTemplates:list(data.contractTemplates),issuedContracts:list(data.issuedContracts),
-    billingPlans:list(data.billingPlans),billingInstallments:list(data.billingInstallments),billingPayments:list(data.billingPayments),
+    billingPlans:list(data.billingPlans),billingInstallments:installments,billingPayments:list(data.billingPayments),
     collectionActions:list(data.collectionActions),attachments:list(data.attachments),
     alertState:parse(alertRow?.stateJson??alertRow?.state_json,{}),
     settings:parse(settingsRow?.settingsJson??settingsRow?.settings_json,{}),
