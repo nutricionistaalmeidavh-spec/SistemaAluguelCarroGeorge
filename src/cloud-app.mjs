@@ -19,7 +19,7 @@ import { administrationHtml,bindAdministration } from './cloud/ui/administration
 import { rentalContractPdf,rentalReceiptPdf,inspectionPdf,issuedContractPdf } from './domain/documents.mjs';
 
 const RESOURCE_PERMISSIONS=Object.freeze({
-  customers:'customer.read',vehicles:'vehicle.read',rentals:'rental.read',
+  customers:'customer.read',vehicles:'vehicle.read',rentals:'rental.read',appSettings:'rental.read',
   rentalPayments:'finance.read',expenses:'finance.read',ledger:'finance.read',
   inspections:'inspection.read',inspectionItems:'inspection.read',maintenance:'maintenance.read',
   billingPlans:'billing.read',billingInstallments:'billing.read',billingPayments:'billing.read',collectionActions:'billing.read',
