@@ -14,7 +14,7 @@ import { renderDashboard,renderVistorias,renderManutencao,renderAlertas,renderDo
 import { renderSync } from './ui/p2.mjs';
 import { renderContracts,renderBilling,renderDelinquency } from './ui/commercial.mjs';
 
-let repository=null,syncClient=null,snapshot=null,sessionUser=null,active='dashboard',syncInfo=null,syncBusy=false,syncTimer=null,activeSync=null,restoring=false,cloudFirstAccess=null;
+let repository=null,syncClient=null,snapshot=null,sessionUser=null,active='dashboard',syncInfo=null,syncBusy=false,syncTimer=null,activeSync=null,restoring=false,cloudFirstAccess=null,replicaUnsubscribe=null;
 const app=document.querySelector('#app');
 const syncMeta=()=>syncClient?.load()??{enabled:false,autoSync:false,revision:0,lastError:null};
 
@@ -62,6 +62,9 @@ function renderLogin(){
   };
 }
 
+async function refreshFromReplica(){try{await repository.flush();snapshot=await repository.reload();render();}catch(error){toast(`Falha ao atualizar dados da nuvem: ${error.message}`);}}
+function bindReplicaRefresh(){replicaUnsubscribe?.();replicaUnsubscribe=null;if(window.locadoraDesktop?.onReplicaChanged)replicaUnsubscribe=window.locadoraDesktop.onReplicaChanged(()=>{void refreshFromReplica();});}
+
 async function configureSync(){const pair=new URLSearchParams(location.search).get('pair');if(window.locadoraDesktop?.getSyncInfo){try{syncInfo=await window.locadoraDesktop.getSyncInfo();if(syncInfo?.available){const meta=syncMeta();syncClient.configure({serverUrl:syncInfo.localUrl,token:syncInfo.token,deviceName:meta.deviceName||'PC principal',enabled:true,autoSync:meta.autoSync});await syncClient.flush();await syncNow({silent:true});}}catch{}}else if(pair&&['http:','https:'].includes(location.protocol)){const meta=syncMeta();syncClient.configure({serverUrl:location.origin,token:pair,deviceName:meta.deviceName||'Celular',enabled:true,autoSync:true});await syncClient.flush();history.replaceState({},document.title,location.pathname+location.hash);await syncNow({silent:true});}window.addEventListener('online',()=>{const meta=syncMeta();if(meta.enabled)void syncNow({silent:false});});setInterval(()=>{const accrued=accrueDailySchedules();if(accrued&&sessionUser)render();const meta=syncMeta();if(meta.enabled&&meta.autoSync&&navigator.onLine!==false)void syncNow({silent:true});},15000);}
 
 async function bootstrap(){
@@ -75,6 +78,7 @@ async function bootstrap(){
     snapshot=repository.load();
     syncClient=createSyncClient({store:repository.kv});
     await syncClient.init();
+    bindReplicaRefresh();
     if('serviceWorker' in navigator&&globalThis.isSecureContext){try{await navigator.serviceWorker.register('./sw.js');}catch{}}
     await configureSync();
     if(window.locadoraDesktop?.cloudAuthStatus){try{const cloud=await window.locadoraDesktop.cloudAuthStatus();if(cloud?.authenticated&&cloud.user)sessionUser=cloud.user;}catch{}}
