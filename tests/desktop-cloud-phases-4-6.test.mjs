@@ -137,3 +137,43 @@ test('fase 5: main→preload→renderer propaga réplica aplicada e recarrega SQ
   assert.match(app,/onReplicaChanged/);
   assert.match(app,/repository\.reload\(\)/);
 });
+
+test('fase 6: outbox despacha exclusão de attachment com operationId estável',async()=>{
+  const {runOutbox}=await import('../src/sync/outbox-runner.mjs');
+  const candidate={id:'Q-ATT-1',operationId:'desktop:attachment.delete:ATT-1',kind:'attachment.delete',payload:{attachmentId:'ATT-1'},status:'pending',attempts:0,maxAttempts:5};
+  let synced=null,called=null;
+  const outbox={
+    async list(){return[structuredClone(candidate)];},
+    async markSending(){return{...candidate,status:'sending',attempts:1};},
+    async markSynced(_id,result){synced=result;},async markConflict(){},async markFailed(){},async flush(){}
+  };
+  const api={async deleteAttachment(id,{operationId}={}){called={id,operationId};return true;}};
+  const result=await runOutbox({outbox,api});
+  assert.equal(result.synced,1);
+  assert.deepEqual(called,{id:'ATT-1',operationId:'desktop:attachment.delete:ATT-1'});
+  assert.deepEqual(synced,{id:'ATT-1',deleted:true});
+});
+
+test('fase 6: API client exclui attachment autenticado usando DELETE e chave idempotente',async()=>{
+  const {createApiClient}=await import('../src/api/client.mjs');
+  let captured=null;
+  const api=createApiClient({baseUrl:'https://cloud.example',maxRetries:0,fetchImpl:async(url,options)=>{captured={url:String(url),method:options.method,operationId:new Headers(options.headers).get('idempotency-key')};return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});}});
+  await api.deleteAttachment('ATT-1',{operationId:'OP-ATT-DEL'});
+  assert.equal(captured.url,'https://cloud.example/api/v1/attachments/ATT-1');
+  assert.equal(captured.method,'DELETE');
+  assert.equal(captured.operationId,'OP-ATT-DEL');
+});
+
+test('fase 6: desktop enfileira upload/delete de attachment e expõe diagnóstico/flush cloud sem credencial no renderer',()=>{
+  const main=fs.readFileSync(new URL('../electron/main.cjs',import.meta.url),'utf8');
+  const preload=fs.readFileSync(new URL('../electron/preload.cjs',import.meta.url),'utf8');
+  assert.match(main,/attachment\.upload/);
+  assert.match(main,/attachment\.delete/);
+  assert.match(main,/desktop:attachment\.upload:/);
+  assert.match(main,/desktop:attachment\.delete:/);
+  assert.match(main,/locadora:cloud-sync:status/);
+  assert.match(main,/locadora:cloud-sync:sync-now/);
+  assert.match(preload,/cloudSyncStatus/);
+  assert.match(preload,/cloudSyncNow/);
+  assert.doesNotMatch(preload,/replicaCredential|deviceTokenEncrypted|cookie/);
+});
