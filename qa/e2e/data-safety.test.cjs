@@ -16,22 +16,20 @@ async function company(page,name){
  await page.locator('#settings-form [name="companyName"]').fill(name);
  await page.locator('#settings-form button').click();
  await expect(page.locator('.toast').filter({hasText:'Configurações salvas.'}).last()).toBeVisible();
+ await waitLocalCompany(page,name);
 }
-async function sync(page){
- const info=await page.evaluate(()=>window.locadoraDesktop.getSyncInfo());
- assert.equal(info?.legacySnapshotSync,true,'este cenário de rollback deve iniciar o Electron com compatibilidade de snapshot explícita');
- await page.locator('[data-nav="sync"]').click();
- const enabled=page.locator('#sync-form input[name="enabled"]');if(!await enabled.isChecked())await enabled.check();
- await page.locator('#sync-form button.primary').click();
- await expect(page.locator('.toast').filter({hasText:'Configuração de sincronização salva.'}).last()).toBeVisible();
- await page.locator('.toast').evaluateAll(nodes=>nodes.forEach(node=>node.remove()));
- await page.locator('#sync-now').click();
- await expect(page.locator('.toast').filter({hasText:'Sincronização concluída.'}).last()).toBeVisible({timeout:10000});
+async function waitLocalCompany(page,name){
+ await expect.poll(async()=>page.evaluate(async()=>{
+  const raw=await window.locadoraDesktop.snapshotLoad();
+  return raw?JSON.parse(raw).settings?.companyName:null;
+ }),{timeout:10000}).toBe(name);
 }
-test('backup: export, alter, restore, synchronize and reload preserve restored data',async()=>{
- const ctx=await launchLocadora({legacySnapshotSync:true});const errors=[];ctx.page.on('pageerror',e=>errors.push(e.message));
+
+test('backup: export, alter, restore e reload preservam dados sem depender de LAN',async()=>{
+ const ctx=await launchLocadora();const errors=[];ctx.page.on('pageerror',e=>errors.push(e.message));
  try{
-  const p=ctx.page;await login(p);await company(p,'Empresa do backup');await sync(p);
+  const p=ctx.page;await login(p);await company(p,'Empresa do backup');
+  assert.equal(await p.evaluate(()=>typeof window.locadoraDesktop.getSyncInfo),'undefined','bridge LAN deve estar removida');
   await p.locator('[data-nav="backup"]').click();
   const backupPath=path.join(ctx.dir,'backup-exportado.json');
   await ctx.app.evaluate(({session},file)=>{
@@ -48,12 +46,13 @@ test('backup: export, alter, restore, synchronize and reload preserve restored d
   assert.equal(await ctx.app.evaluate(()=>globalThis.qaDownload),'completed');
   const envelope=JSON.parse(await fs.readFile(backupPath,'utf8'));
   assert.equal(envelope.snapshot.settings.companyName,'Empresa do backup');
-  await company(p,'Empresa alterada');await sync(p);
+  await company(p,'Empresa alterada');
   await p.locator('[data-nav="backup"]').click();
   await p.locator('#backup-file').setInputFiles(backupPath);
   await expect(p.locator('.toast').filter({hasText:'Backup restaurado.'})).toBeVisible();
   await expect(p.locator('#settings-form [name="companyName"]')).toHaveValue('Empresa do backup');
-  await sync(p);await p.reload();await login(p);
+  await waitLocalCompany(p,'Empresa do backup');
+  await p.reload();await login(p);
   await p.locator('[data-nav="backup"]').click();
   await expect(p.locator('#settings-form [name="companyName"]')).toHaveValue('Empresa do backup');
   envelope.snapshot.settings.companyName='Backup adulterado';
