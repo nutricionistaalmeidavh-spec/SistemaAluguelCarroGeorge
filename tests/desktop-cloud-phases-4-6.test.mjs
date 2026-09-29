@@ -37,7 +37,7 @@ test('fase 4: pagamentos e vistoria usam o id local como chave idempotente',()=>
   const installment={id:'PAR-1',payments:[],version:3,createdAt:'2026-09-20T10:00:00.000Z',updatedAt:'2026-09-20T10:00:00.000Z'};
   before.billingInstallments.push(structuredClone(installment));
   after.billingInstallments.push({...installment,payments:[{id:'BPG-PC-1',amount:150,method:'Dinheiro',paidAt:'2026-09-29T12:11:00.000Z'}]});
-  after.inspections.push({id:'VIS-PC-1',rentalId:'LOC-1',kind:'pickup',mileage:1234,fuelLevel:'3/4',notes:'ok',damages:[],checklist:[{id:'geral',label:'Verificação geral',done:true,evidence:null}],createdAt:'2026-09-29T12:12:00.000Z'});
+  after.inspections.push({id:'VIS-PC-1',rentalId:'LOC-1',kind:'checkout',mileage:1234,fuelLevel:'3/4',notes:'ok',damages:[],checklist:[{id:'geral',label:'Verificação geral',done:true,evidence:null}],createdAt:'2026-09-29T12:12:00.000Z'});
   const operations=buildCloudOperations(before,after);
   assert.deepEqual(operations.map(x=>x.kind),['rental.payment','billing.payment','inspection.create']);
   assert.equal(operations[0].payload.id,'PAG-PC-1');
@@ -45,6 +45,7 @@ test('fase 4: pagamentos e vistoria usam o id local como chave idempotente',()=>
   assert.equal(operations[1].payload.id,'BPG-PC-1');
   assert.equal(operations[1].payload.installmentId,'PAR-1');
   assert.equal(operations[2].payload.id,'VIS-PC-1');
+  assert.equal(operations[2].payload.kind,'pickup');
   assert.deepEqual(operations[2].payload.items,[{key:'geral',label:'Verificação geral',done:true,evidence:null}]);
 });
 
