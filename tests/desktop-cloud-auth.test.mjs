@@ -48,7 +48,8 @@ test('preload e main expõem fluxo cloud e não iniciam mais runtime LAN',()=>{
   const preload=fs.readFileSync(new URL('../electron/preload.cjs',import.meta.url),'utf8'),main=fs.readFileSync(new URL('../electron/main.cjs',import.meta.url),'utf8');
   for(const name of ['cloudAuthStatus','cloudAuthLogin','cloudAuthFirstAccess','cloudAuthLogout','cloudSyncStatus','cloudSyncNow','cloudSyncConflicts','cloudSyncResolveConflict'])assert.match(preload,new RegExp(name));
   for(const channel of ['locadora:cloud-auth:status','locadora:cloud-auth:login','locadora:cloud-auth:first-access','locadora:cloud-auth:logout','locadora:cloud-sync:conflicts','locadora:cloud-sync:resolve-conflict'])assert.match(main,new RegExp(channel));
-  assert.match(main,/initializeLocalStorage\(/);assert.match(main,/startReplica\(/);assert.match(main,/loadFile\(/);
+  assert.match(main,/initializeLocalStorage\(/);assert.match(main,/startReplica\(/);assert.match(main,/locadora:\/\/app\/index\.html/);
+  assert.match(main,/registerSchemesAsPrivileged/);assert.match(main,/createAppProtocolHandler/);
   assert.doesNotMatch(main,/startLanSync|startSyncServer|sync-info|pairingUrls/);
   assert.match(main,/https:\/\/sistemaaluguelcarrogeorge\.sistema-artisys\.workers\.dev/);
 });
@@ -61,4 +62,15 @@ test('desktop cria backup verificado antes do primeiro ciclo de réplica cloud',
   const backup=body.indexOf('await ensureDailyBackup()');
   const replica=body.indexOf('await startReplica()');
   assert.ok(backup>=0&&replica>=0&&backup<replica,'backup deve acontecer antes da réplica cloud');
+});
+
+test('protocolo privado entrega módulos ESM sem expor servidor HTTP/LAN',async()=>{
+  const {createAppProtocolHandler,mimeType}=require('../electron/app-protocol.cjs');
+  assert.equal(mimeType('/tmp/app.mjs'),'text/javascript; charset=utf-8');
+  assert.equal(mimeType('/tmp/index.html'),'text/html; charset=utf-8');
+  const handler=createAppProtocolHandler({rootDir:new URL('..',import.meta.url).pathname});
+  const response=await handler(new Request('locadora://app/index.html'));
+  assert.equal(response.status,200);
+  assert.match(response.headers.get('content-type'),/text\/html/);
+  assert.match(await response.text(),/src\/bootstrap\.mjs/);
 });
