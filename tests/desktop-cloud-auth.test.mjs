@@ -42,4 +42,15 @@ test('preload e main expõem o fluxo cloud sem remover LAN legado',()=>{
   for(const name of ['cloudAuthStatus','cloudAuthLogin','cloudAuthFirstAccess','cloudAuthLogout'])assert.match(preload,new RegExp(name));
   for(const channel of ['locadora:cloud-auth:status','locadora:cloud-auth:login','locadora:cloud-auth:first-access','locadora:cloud-auth:logout'])assert.match(main,new RegExp(channel));
   assert.match(main,/startLanSync\(/);assert.match(main,/startSyncServer/);assert.match(main,/startReplica\(/);
+  assert.match(main,/https:\/\/sistemaaluguelcarrogeorge\.sistema-artisys\.workers\.dev/);
+});
+
+test('desktop cria backup verificado antes do primeiro ciclo de réplica cloud',()=>{
+  const main=fs.readFileSync(new URL('../electron/main.cjs',import.meta.url),'utf8');
+  const start=main.indexOf('async function startPlan03()');
+  const end=main.indexOf('function cloudFailure',start);
+  const body=main.slice(start,end);
+  const backup=body.indexOf('await ensureDailyBackup()');
+  const replica=body.indexOf('await startReplica()');
+  assert.ok(backup>=0&&replica>=0&&backup<replica,'backup deve acontecer antes da réplica cloud');
 });
