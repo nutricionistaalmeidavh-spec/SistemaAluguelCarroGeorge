@@ -12,7 +12,7 @@ const checks=[
  ['Manutenção',['scheduleMaintenance','completeMaintenance'],['manutencao','Manutenção']],
  ['Financeiro',['registerPayment','getFinancialSummary'],['financeiro','Financeiro']],
  ['Backup',['createBackupEnvelope','restoreBackupEnvelope'],['backup','Backup']],
- ['Sync',['exchangeSnapshots','mergeSnapshots'],['sync','PC ↔ Mobile']],
+ ['Sync cloud',['runOutbox','resolveConflict'],['Nuvem','sync-state']],
  ['Comercial',['createBillingPlan','delinquencySummary'],['cobrancas','inadimplencia']]
 ];
 let fail=[];const rows=checks.map(([area,code,user])=>{const domain=code.every(t=>tests.includes(t));const pathOk=user.some(t=>e2e.includes(t)||flows.includes(t));if(!domain||!pathOk)fail.push(area);return {area,domain,pathOk};});
