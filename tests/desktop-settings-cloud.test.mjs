@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { handleSyncRoute } from '../cloudflare/api/sync-routes.mjs';
 import { FakeD1 } from './helpers/fake-d1.mjs';
@@ -8,7 +12,9 @@ import { snapshotToRelational } from '../src/migration/snapshot-to-relational.mj
 
 const require=createRequire(import.meta.url);
 const {buildCloudOperations}=require('../electron/cloud-sync-operations.cjs');
+const {RelationalStore}=require('../electron/relational-store.cjs');
 const admin={userId:'USR-ADMIN',installationId:'INST-SET',role:'admin',active:true,deviceId:'PC-GEORGE'};
+const migrationsDir=fileURLToPath(new URL('../db/migrations/',import.meta.url));
 
 function snapshot(name='George',version=3){return{version:4,customers:[],vehicles:[],rentals:[],expenses:[],users:[],ledger:[],audit:[],inspections:[],maintenance:[],contractTemplates:[],issuedContracts:[],billingPlans:[],billingInstallments:[],collectionActions:[],alertState:{},settings:{companyName:name,document:'',phone:'',address:''},settingsSyncVersion:version,settingsUpdatedAt:'2026-09-29T20:00:00.000Z',updatedAt:'2026-09-29T20:00:00.000Z'};}
 function request(operation){return new Request('https://locadora.test/api/v1/sync/operations',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({operations:[operation]})});}
@@ -23,12 +29,10 @@ test('desktop gera settings.update versionado quando configurações da empresa 
   assert.match(settings.operationId,/^desktop:settings\.update:/);
 });
 
-test('metadata de versão das configurações sobrevive SQLite relacional ↔ snapshot',()=>{
-  const original=snapshot('George Cloud',7),dataset=snapshotToRelational(original,{installationId:'INST-SET',deviceId:'PC-GEORGE'});
-  assert.equal(dataset.app_settings[0].version,7);
-  const restored=relationalToSnapshot(dataset);
-  assert.equal(restored.settings.companyName,'George Cloud');
-  assert.equal(restored.settingsSyncVersion,7);
+test('metadata de versão das configurações sobrevive no SQLite desktop',()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'locadora-settings-')),file=path.join(dir,'locadora.db');
+  const store=RelationalStore.open(file,{migrationsDir,installationId:'INST-SET',deviceId:'PC-GEORGE',snapshotToRelational,relationalToSnapshot});
+  try{const original=snapshot('George Cloud',7);store.saveSnapshot(original);const restored=store.loadSnapshot();assert.equal(restored.settings.companyName,'George Cloud');assert.equal(restored.settingsSyncVersion,7);}finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
 
 test('sync/operations aplica settings.update com conflito otimista e publica delta',async()=>{
