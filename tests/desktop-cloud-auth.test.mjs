@@ -30,6 +30,13 @@ test('desktop restaura sessão persistente, valida /auth/me e logout limpa apena
   await auth.logout();assert.equal(store.get('cloud:desktop-session:v1'),null);assert.equal(calls.at(-1).init.headers.cookie,cookie);
 });
 
+test('desktop mantém sessão criptografada para trabalho offline quando validação de rede falha',async()=>{
+  const {createDesktopCloudAuth}=require('../electron/cloud-auth.cjs');
+  const store=memoryStore(),storage=safeStorage(),cookie='locadora_session=offline-session';store.setJson('cloud:desktop-session:v1',{baseUrl:'https://locadora.example',cookieEncrypted:storage.encryptString(cookie).toString('base64'),expiresAt:'2099-01-01T00:00:00.000Z',user:{id:'USR-1',username:'george@example.com',role:'admin'}});
+  const auth=createDesktopCloudAuth({baseUrl:'https://locadora.example',installationId:'LOCADORA-GEORGE',deviceId:'GEORGE-PC',store,safeStorage:storage,fetchImpl:async()=>{throw new TypeError('offline');}});
+  await assert.rejects(auth.restore(),/offline/);assert.equal(auth.status().authenticated,true);assert.equal(auth.status().user.id,'USR-1');
+});
+
 test('desktop nunca grava sessão cloud em texto puro quando safeStorage não está disponível',async()=>{
   const {createDesktopCloudAuth}=require('../electron/cloud-auth.cjs');
   const store=memoryStore(),unsafe={isEncryptionAvailable:()=>false};
@@ -37,11 +44,12 @@ test('desktop nunca grava sessão cloud em texto puro quando safeStorage não es
   await assert.rejects(auth.login({username:'u@example.com',password:'password-value'}),/secure_storage_unavailable/);assert.equal(store.get('cloud:desktop-session:v1'),null);
 });
 
-test('preload e main expõem o fluxo cloud sem remover LAN legado',()=>{
+test('preload e main expõem fluxo cloud e não iniciam mais runtime LAN',()=>{
   const preload=fs.readFileSync(new URL('../electron/preload.cjs',import.meta.url),'utf8'),main=fs.readFileSync(new URL('../electron/main.cjs',import.meta.url),'utf8');
-  for(const name of ['cloudAuthStatus','cloudAuthLogin','cloudAuthFirstAccess','cloudAuthLogout'])assert.match(preload,new RegExp(name));
-  for(const channel of ['locadora:cloud-auth:status','locadora:cloud-auth:login','locadora:cloud-auth:first-access','locadora:cloud-auth:logout'])assert.match(main,new RegExp(channel));
-  assert.match(main,/startLanSync\(/);assert.match(main,/startSyncServer/);assert.match(main,/startReplica\(/);
+  for(const name of ['cloudAuthStatus','cloudAuthLogin','cloudAuthFirstAccess','cloudAuthLogout','cloudSyncStatus','cloudSyncNow','cloudSyncConflicts','cloudSyncResolveConflict'])assert.match(preload,new RegExp(name));
+  for(const channel of ['locadora:cloud-auth:status','locadora:cloud-auth:login','locadora:cloud-auth:first-access','locadora:cloud-auth:logout','locadora:cloud-sync:conflicts','locadora:cloud-sync:resolve-conflict'])assert.match(main,new RegExp(channel));
+  assert.match(main,/initializeLocalStorage\(/);assert.match(main,/startReplica\(/);assert.match(main,/loadFile\(/);
+  assert.doesNotMatch(main,/startLanSync|startSyncServer|sync-info|pairingUrls/);
   assert.match(main,/https:\/\/sistemaaluguelcarrogeorge\.sistema-artisys\.workers\.dev/);
 });
 
