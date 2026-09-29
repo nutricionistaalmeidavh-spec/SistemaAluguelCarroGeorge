@@ -20,7 +20,7 @@ test('PWA aprovada possui os 12 módulos e navegação respeita permissões',()=
   ]);
 });
 
-test('snapshot cloud adapta JSON e tabelas relacionais ao formato usado pelos domínios desktop',()=>{
+test('snapshot cloud adapta JSON, pagamentos e anexos ao formato usado pelos domínios desktop',()=>{
   const snapshot=buildCloudSnapshot({
     customers:[{id:'CUS-1',name:'Ana',driverLicenseJson:JSON.stringify({number:'CNH-1',category:'B',expiry:'2027-01-10'})}],
     vehicles:[{id:'VEI-1',model:'Onix',plate:'ABC1D23',documentsJson:JSON.stringify({insuranceExpiry:'2027-02-01',renavam:'123'})}],
@@ -28,7 +28,10 @@ test('snapshot cloud adapta JSON e tabelas relacionais ao formato usado pelos do
     rentalPayments:[{id:'PAG-1',rentalId:'LOC-1',amount:100,method:'PIX',paidAt:'2026-09-29T12:00:00Z'}],
     inspections:[{id:'VIS-1',rentalId:'LOC-1',vehicleId:'VEI-1',kind:'pickup',status:'completed',damagesJson:'["risco"]'}],
     inspectionItems:[{id:'VII-1',inspectionId:'VIS-1',itemKey:'pneus',label:'Pneus',done:1,evidence:null}],
-    maintenance:[],expenses:[],ledger:[],billingPlans:[],billingInstallments:[],collectionActions:[],contractTemplates:[],issuedContracts:[],
+    attachments:[{id:'ATT-1',entityType:'inspection',entityId:'VIS-1',mimeType:'image/jpeg',sizeBytes:123,sha256:'abc'}],
+    billingInstallments:[{id:'PAR-1',rentalId:'LOC-1',amount:100,paidAmount:50,status:'partial'}],
+    billingPayments:[{id:'BPG-1',installmentId:'PAR-1',amount:50,method:'PIX',paidAt:'2026-09-29T12:00:00Z'}],
+    maintenance:[],expenses:[],ledger:[],billingPlans:[],collectionActions:[],contractTemplates:[],issuedContracts:[],
     alertState:[{id:'STATE',stateJson:JSON.stringify({alerts:{'rental:LOC-1':{status:'acknowledged'}}})}]
   });
   assert.deepEqual(snapshot.customers[0].driverLicense,{number:'CNH-1',category:'B',expiry:'2027-01-10'});
@@ -36,6 +39,8 @@ test('snapshot cloud adapta JSON e tabelas relacionais ao formato usado pelos do
   assert.equal(snapshot.rentals[0].payments[0].id,'PAG-1');
   assert.deepEqual(snapshot.inspections[0].damages,['risco']);
   assert.deepEqual(snapshot.inspections[0].checklist,[{id:'pneus',label:'Pneus',done:true,evidence:null}]);
+  assert.deepEqual(snapshot.inspections[0].photos,[{attachmentId:'ATT-1',name:'ATT-1',mimeType:'image/jpeg',sizeBytes:123,sha256:'abc'}]);
+  assert.equal(snapshot.billingInstallments[0].payments[0].id,'BPG-1');
   assert.equal(snapshot.alertState.alerts['rental:LOC-1'].status,'acknowledged');
 });
 
