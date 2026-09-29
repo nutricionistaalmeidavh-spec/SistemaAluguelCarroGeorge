@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 
 const require=createRequire(import.meta.url);
 const {buildCloudOperations}=require('../electron/cloud-sync-operations.cjs');
+const {createDesktopCloudSyncController}=require('../electron/cloud-sync-controller.cjs');
 
 function baseSnapshot(){return{
   customers:[],vehicles:[],rentals:[],inspections:[],billingInstallments:[],
@@ -37,7 +38,7 @@ test('fase 4: pagamentos e vistoria usam o id local como chave idempotente',()=>
   const installment={id:'PAR-1',payments:[],version:3,createdAt:'2026-09-20T10:00:00.000Z',updatedAt:'2026-09-20T10:00:00.000Z'};
   before.billingInstallments.push(structuredClone(installment));
   after.billingInstallments.push({...installment,payments:[{id:'BPG-PC-1',amount:150,method:'Dinheiro',paidAt:'2026-09-29T12:11:00.000Z'}]});
-  after.inspections.push({id:'VIS-PC-1',rentalId:'LOC-1',kind:'checkout',mileage:1234,fuelLevel:'3/4',notes:'ok',damages:[],checklist:[{id:'geral',label:'Verificação geral',done:true,evidence:null}],createdAt:'2026-09-29T12:12:00.000Z'});
+  after.inspections.push({id:'VIS-PC-1',rentalId:'LOC-1',kind:'checkout',status:'completed',mileage:1234,fuelLevel:'3/4',notes:'ok',damages:[],checklist:[{id:'geral',label:'Verificação geral',done:true,evidence:null}],createdAt:'2026-09-29T12:12:00.000Z'});
   const operations=buildCloudOperations(before,after);
   assert.deepEqual(operations.map(x=>x.kind),['rental.payment','billing.payment','inspection.create']);
   assert.equal(operations[0].payload.id,'PAG-PC-1');
@@ -59,4 +60,20 @@ test('fase 4: update versionado carrega expectedVersion e não faz last-write-wi
   assert.equal(operation.payload.expectedVersion,4);
   assert.equal(operation.payload.data.name,'Novo');
   assert.match(operation.operationId,/^desktop:customer\.update:CUS-1:/);
+});
+
+test('fase 4: controller deduplica operationId já durável inclusive após falha',async()=>{
+  const items=[{id:'Q-1',operationId:'desktop:customer.create:CUS-1',status:'failed'}],enqueued=[];
+  const outbox={
+    async list(){return structuredClone(items);},
+    async enqueue(op){enqueued.push(op);items.push({id:`Q-${items.length+1}`,...op,status:'pending'});return op;},
+    async summary(){return{total:items.length,pending:items.filter(x=>x.status==='pending').length,failed:items.filter(x=>x.status==='failed').length};}
+  };
+  const controller=createDesktopCloudSyncController({outbox,runOutbox:async()=>({synced:0}),api:{},authenticated:()=>true});
+  await controller.enqueueOperations([
+    {operationId:'desktop:customer.create:CUS-1',kind:'customer.create',payload:{id:'CUS-1'}},
+    {operationId:'desktop:vehicle.create:VEI-1',kind:'vehicle.create',payload:{id:'VEI-1'}}
+  ]);
+  assert.deepEqual(enqueued.map(x=>x.operationId),['desktop:vehicle.create:VEI-1']);
+  assert.equal((await controller.status()).total,2);
 });
