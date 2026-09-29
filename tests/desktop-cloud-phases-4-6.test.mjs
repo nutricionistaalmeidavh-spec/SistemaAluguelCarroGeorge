@@ -6,9 +6,11 @@ import { createRequire } from 'node:module';
 const require=createRequire(import.meta.url);
 const {buildCloudOperations}=require('../electron/cloud-sync-operations.cjs');
 const {createDesktopCloudSyncController}=require('../electron/cloud-sync-controller.cjs');
+const {ReplicaAgent}=require('../electron/replica/agent.cjs');
 
 function baseSnapshot(){return{
-  customers:[],vehicles:[],rentals:[],inspections:[],billingInstallments:[],
+  version:4,customers:[],vehicles:[],rentals:[],expenses:[],users:[],ledger:[],audit:[],inspections:[],maintenance:[],
+  contractTemplates:[],issuedContracts:[],billingPlans:[],billingInstallments:[],collectionActions:[],settings:{companyName:'George'},alertState:{},
   updatedAt:'2026-09-29T12:00:00.000Z'
 };}
 
@@ -86,4 +88,39 @@ test('fase 4: processo principal persiste snapshot antes de enfileirar e entrega
   assert.match(source,/createOutbox/);
   assert.match(source,/relationalStore\.saveSnapshot\(snapshot\)[\s\S]{0,700}enqueueOperations\(buildCloudOperations/);
   assert.match(source,/cloudAuth\?\.status\?\.\(\)\.authenticated/);
+});
+
+test('fase 5: ReplicaAgent notifica somente depois de um ciclo cloud aplicado com sucesso',async()=>{
+  const notifications=[];
+  let state={initialized:true,cursor:4,restoreGeneration:1,lastSyncAt:null,lastError:null};
+  const agent=new ReplicaAgent({
+    client:{async changes(after){assert.equal(after,4);return{changes:[],cursor:5,restoreGeneration:1,hasMore:false};}},
+    local:{async applyChanges(changes){assert.deepEqual(changes,[]);}},
+    stateStore:{load:()=>structuredClone(state),save:next=>{state=structuredClone(next);return next;},error(){throw new Error('não deveria falhar');}},
+    onSynced:status=>notifications.push(status)
+  });
+  const result=await agent.syncNow();
+  assert.equal(result.cursor,5);
+  assert.equal(notifications.length,1);
+  assert.equal(notifications[0].cursor,5);
+});
+
+test('fase 5: repository.reload troca o cache do renderer pelo snapshot canônico já gravado no SQLite',async()=>{
+  const previousWindow=globalThis.window;
+  let persisted=JSON.stringify(baseSnapshot());
+  const bridge={
+    snapshotLoad:async()=>persisted,snapshotSave:async value=>{persisted=String(value);return true;},
+    dbGet:async()=>null,dbSet:async()=>true,dbRemove:async()=>true,
+    putAttachment:async input=>input,getAttachment:async()=>null,removeAttachment:async()=>true,listAttachments:async()=>[]
+  };
+  globalThis.window={locadoraDesktop:bridge};
+  try{
+    const {createRepository}=await import(`../src/storage/repository.mjs?phase5=${Date.now()}`);
+    const repository=await createRepository();
+    assert.equal(repository.load().settings.companyName,'George');
+    const cloud=baseSnapshot();cloud.settings.companyName='George Cloud';cloud.updatedAt='2026-09-29T12:30:00.000Z';persisted=JSON.stringify(cloud);
+    const refreshed=await repository.reload();
+    assert.equal(refreshed.settings.companyName,'George Cloud');
+    assert.equal(repository.load().updatedAt,'2026-09-29T12:30:00.000Z');
+  }finally{globalThis.window=previousWindow;}
 });
