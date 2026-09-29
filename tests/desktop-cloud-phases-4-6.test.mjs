@@ -1,0 +1,61 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require=createRequire(import.meta.url);
+const {buildCloudOperations}=require('../electron/cloud-sync-operations.cjs');
+
+function baseSnapshot(){return{
+  customers:[],vehicles:[],rentals:[],inspections:[],billingInstallments:[],
+  updatedAt:'2026-09-29T12:00:00.000Z'
+};}
+
+test('fase 4: snapshot inalterado não gera operações cloud',()=>{
+  const before=baseSnapshot(),after=structuredClone(before);
+  assert.deepEqual(buildCloudOperations(before,after),[]);
+});
+
+test('fase 4: gera operações semânticas idempotentes para cadastros e locação',()=>{
+  const before=baseSnapshot(),after=baseSnapshot();
+  after.customers.push({id:'CLI-PC-1',name:'Cliente PC',document:'123',phone:'16999999999',email:'pc@example.test',address:'Rua A',active:true,createdAt:'2026-09-29T12:01:00.000Z',updatedAt:'2026-09-29T12:01:00.000Z'});
+  after.vehicles.push({id:'VEI-PC-1',model:'Onix',plate:'ABC1D23',year:'2025',mileage:100,category:'Padrão',color:'Prata',dailyRate:150,purchasePrice:70000,availability:'disponivel',createdAt:'2026-09-29T12:02:00.000Z',updatedAt:'2026-09-29T12:02:00.000Z'});
+  after.rentals.push({id:'LOC-PC-1',customerId:'CLI-PC-1',vehicleId:'VEI-PC-1',attendantId:'USR-ADMIN',pickupAt:'2026-10-01T10:00:00.000Z',returnAt:'2026-10-03T10:00:00.000Z',periodMode:'fixed',priority:'Media',notes:'offline',dailyRate:150,billingMode:'daily',createdAt:'2026-09-29T12:03:00.000Z',updatedAt:'2026-09-29T12:03:00.000Z'});
+  const operations=buildCloudOperations(before,after);
+  assert.deepEqual(operations.map(x=>x.kind),['customer.create','vehicle.create','rental.create']);
+  assert.equal(operations[0].payload.id,'CLI-PC-1');
+  assert.equal(operations[1].payload.id,'VEI-PC-1');
+  assert.equal(operations[2].payload.id,'LOC-PC-1');
+  assert.equal(operations[2].payload.billingMode,'daily');
+  assert.deepEqual(buildCloudOperations(before,after).map(x=>x.operationId),operations.map(x=>x.operationId));
+});
+
+test('fase 4: pagamentos e vistoria usam o id local como chave idempotente',()=>{
+  const before=baseSnapshot(),after=baseSnapshot();
+  const rental={id:'LOC-1',customerId:'CUS-1',vehicleId:'VEI-1',payments:[],createdAt:'2026-09-20T10:00:00.000Z',updatedAt:'2026-09-20T10:00:00.000Z'};
+  before.rentals.push(structuredClone(rental));
+  after.rentals.push({...rental,payments:[{id:'PAG-PC-1',amount:80,method:'PIX',paidAt:'2026-09-29T12:10:00.000Z'}]});
+  const installment={id:'PAR-1',payments:[],version:3,createdAt:'2026-09-20T10:00:00.000Z',updatedAt:'2026-09-20T10:00:00.000Z'};
+  before.billingInstallments.push(structuredClone(installment));
+  after.billingInstallments.push({...installment,payments:[{id:'BPG-PC-1',amount:150,method:'Dinheiro',paidAt:'2026-09-29T12:11:00.000Z'}]});
+  after.inspections.push({id:'VIS-PC-1',rentalId:'LOC-1',kind:'pickup',mileage:1234,fuelLevel:'3/4',notes:'ok',damages:[],checklist:[{id:'geral',label:'Verificação geral',done:true,evidence:null}],createdAt:'2026-09-29T12:12:00.000Z'});
+  const operations=buildCloudOperations(before,after);
+  assert.deepEqual(operations.map(x=>x.kind),['rental.payment','billing.payment','inspection.create']);
+  assert.equal(operations[0].payload.id,'PAG-PC-1');
+  assert.equal(operations[0].payload.rentalId,'LOC-1');
+  assert.equal(operations[1].payload.id,'BPG-PC-1');
+  assert.equal(operations[1].payload.installmentId,'PAR-1');
+  assert.equal(operations[2].payload.id,'VIS-PC-1');
+  assert.deepEqual(operations[2].payload.items,[{key:'geral',label:'Verificação geral',done:true,evidence:null}]);
+});
+
+test('fase 4: update versionado carrega expectedVersion e não faz last-write-wins',()=>{
+  const before=baseSnapshot(),after=baseSnapshot();
+  before.customers.push({id:'CUS-1',name:'Antigo',phone:'1',active:true,syncVersion:4});
+  after.customers.push({id:'CUS-1',name:'Novo',phone:'1',active:true,syncVersion:4});
+  const [operation]=buildCloudOperations(before,after);
+  assert.equal(operation.kind,'customer.update');
+  assert.equal(operation.payload.id,'CUS-1');
+  assert.equal(operation.payload.expectedVersion,4);
+  assert.equal(operation.payload.data.name,'Novo');
+  assert.match(operation.operationId,/^desktop:customer\.update:CUS-1:/);
+});
