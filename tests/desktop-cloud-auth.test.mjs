@@ -49,7 +49,7 @@ test('preload e main expõem fluxo cloud e não iniciam mais runtime LAN',()=>{
   const preload=fs.readFileSync(new URL('../electron/preload.cjs',import.meta.url),'utf8'),main=fs.readFileSync(new URL('../electron/main.cjs',import.meta.url),'utf8');
   for(const name of ['cloudAuthStatus','cloudAuthLogin','cloudAuthFirstAccess','cloudAuthLogout','cloudSyncStatus','cloudSyncNow','cloudSyncConflicts','cloudSyncResolveConflict'])assert.match(preload,new RegExp(name));
   for(const channel of ['locadora:cloud-auth:status','locadora:cloud-auth:login','locadora:cloud-auth:first-access','locadora:cloud-auth:logout','locadora:cloud-sync:conflicts','locadora:cloud-sync:resolve-conflict'])assert.match(main,new RegExp(channel));
-  assert.match(main,/initializeLocalStorage\(/);assert.match(main,/startReplica\(/);assert.match(main,/locadora:\/\/app\/index\.html/);
+  assert.match(main,/initializeLocalStorage\(/);assert.match(main,/startReplica\(/);assert.match(main,/APP_SCHEME='locadora'/);assert.match(main,/\/\/app\/index\.html/);
   assert.match(main,/registerSchemesAsPrivileged/);assert.match(main,/createAppProtocolHandler/);
   assert.doesNotMatch(main,/startLanSync|startSyncServer|sync-info|pairingUrls/);
   assert.match(main,/https:\/\/sistemaaluguelcarrogeorge\.sistema-artisys\.workers\.dev/);
