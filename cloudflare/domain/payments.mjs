@@ -15,7 +15,11 @@ export async function recordRentalPaymentOperation(context,input,operationId){
   const rental=await db.prepare(`SELECT r.id, r.total, r.billing_mode, r.version,
       COALESCE((SELECT SUM(p.amount) FROM rental_payments p WHERE p.installation_id = r.installation_id AND p.rental_id = r.id AND p.deleted_at IS NULL),0) AS paid_amount
     FROM rentals r WHERE r.installation_id = ? AND r.id = ? AND r.deleted_at IS NULL LIMIT 1`).bind(installationId,rentalId).first();
-  if(!rental)fail('rental_not_found');if(rental.billing_mode==='daily')fail('daily_schedule_required');
+  if(!rental)fail('rental_not_found');
+  if(rental.billing_mode==='daily'){
+    const scheduled=await db.prepare(`SELECT id FROM billing_installments WHERE installation_id = ? AND rental_id = ? AND deleted_at IS NULL AND status <> 'cancelled' LIMIT 1`).bind(installationId,rentalId).first();
+    if(scheduled)fail('daily_schedule_required');
+  }
   if(amount>round(Number(rental.total)-Number(rental.paid_amount))+0.001)fail('payment_exceeds_balance','Pagamento excede o saldo da locação.');
   const now=new Date().toISOString(),paidAt=input.paidAt??now,executionId=`EXE-${crypto.randomUUID()}`,paymentId=entityId(input?.id,'PAG'),deviceId=auth.deviceId??null;
   const result={id:paymentId,rentalId,amount,method,paidAt};
