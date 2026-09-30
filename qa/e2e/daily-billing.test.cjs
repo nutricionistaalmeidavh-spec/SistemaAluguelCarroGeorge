@@ -35,7 +35,7 @@ async function createVehicle(page,model='Onix E2E',plate='E2E1A23'){
   await page.getByText(model).waitFor();
 }
 
-test('Electron: reserva por diária gera cobranças, recebe a próxima e distribui várias',async()=>{
+test('Electron: locação por diária gera cobranças, recebe a próxima e distribui várias',async()=>{
   const ctx=await launchLocadora();
   try{
     const page=ctx.page;
@@ -50,7 +50,7 @@ test('Electron: reserva por diária gera cobranças, recebe a próxima e distrib
     await form.locator('[name="returnAt"]').fill('2026-10-06T10:00');
     await form.locator('[name="billingMode"]').selectOption('daily');
     assert.equal(await form.locator('[name="dailyRate"]').inputValue(),'100');
-    await form.getByRole('button',{name:'Salvar reserva'}).click();
+    await form.getByRole('button',{name:'Salvar locação'}).click();
 
     const dailyButton=page.locator('[data-daily-control]').first();
     await dailyButton.waitFor();
@@ -106,7 +106,7 @@ test('Electron: locação contínua nasce sem devolução e força cobrança di�
     assert.equal(await form.locator('[name="returnAt"]').isDisabled(),true);
     assert.equal(await form.locator('[name="billingMode"]').inputValue(),'daily');
     assert.equal(await form.locator('[name="billingMode"]').isDisabled(),true);
-    await form.getByRole('button',{name:'Salvar reserva'}).click();
+    await form.getByRole('button',{name:'Salvar locação'}).click();
     await page.getByText('Locação contínua e primeira diária criadas.').waitFor();
     await page.getByText('Contínua').first().waitFor();
     await page.locator('[data-daily-control]').first().click();
