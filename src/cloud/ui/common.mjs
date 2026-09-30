@@ -64,4 +64,7 @@ export function buildCloudSnapshot(data={}){
   };
 }
 
-export function navHtml(user,active){return navigationFor(user).map(({id,label})=>`<button type="button" data-cloud-nav="${id}" class="nav ${active===id?'active':''}">${label}</button>`).join('');}
+export function navHtml(user,active){
+  const desktop=navigationFor(user).map(({id,label})=>`<button type="button" data-cloud-nav="${id}" class="nav ${active===id?'active':''}">${label}</button>`).join('');
+  return `<div class="desktop-nav-list">${desktop}</div><div class="mobile-nav-shell"><input class="mobile-menu-toggle" id="cloud-mobile-menu" type="checkbox"><label class="mobile-appbar" for="cloud-mobile-menu" aria-label="Abrir central de módulos"><span class="mobile-menu-icon" aria-hidden="true"><i></i><i></i><i></i></span><strong>${esc(mobilePageLabel(user,active))}</strong><span class="mobile-menu-caption">Módulos</span></label><div class="mobile-module-overlay" data-test="mobile-module-central"><label class="mobile-module-backdrop" for="cloud-mobile-menu" aria-label="Fechar central de módulos"></label><section class="mobile-module-panel" role="dialog" aria-modal="true" aria-label="Central de módulos"><header><div><small>Locadora George</small><h2>Central de módulos</h2></div><label class="mobile-module-close" for="cloud-mobile-menu" aria-label="Fechar">×</label></header>${mobileNavHtml(user,active)}</section></div></div>`;
+}
