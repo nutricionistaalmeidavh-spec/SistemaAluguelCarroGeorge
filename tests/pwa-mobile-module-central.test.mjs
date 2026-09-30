@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { mobileNavigationGroups,mobileNavHtml,mobileLabelFor,navHtml } from '../src/cloud/ui/common.mjs';
 
-const admin={id:'USR',role:'admin',permissions:['*']};
+const admin={id:'USR',role:'admin',active:true};
 
 test('central mobile segue a ordem operacional aprovada',()=>{
   const groups=mobileNavigationGroups(admin);
