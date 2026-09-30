@@ -31,7 +31,7 @@ export function mobileNavigationGroups(user){
   return MOBILE_NAV_GROUPS.map(group=>({label:group.label,items:group.ids.map(id=>{const item=allowed.get(id);if(!item)return null;const shortcut=group.label==='Operação'&&id==='finance';return{...item,mobileLabel:shortcut?'Dar baixa':mobileLabelFor(id,item.label),shortcut};}).filter(Boolean)})).filter(group=>group.items.length);
 }
 export function mobileNavHtml(user,active){
-  return mobileNavigationGroups(user).map(group=>`<section class="mobile-module-group"><h3>${esc(group.label)}</h3><div class="mobile-module-grid">${group.items.map(({id,mobileLabel,shortcut})=>{const selected=!shortcut&&active===id;return `<button type="button" data-cloud-nav="${id}" class="mobile-module-card ${selected?'active':''}"${selected?' aria-current="page"':''}><span>${esc(mobileLabel)}</span></button>`;}).join('')}</div></section>`).join('');
+  return mobileNavigationGroups(user).map(group=>`<section class="mobile-module-group"><h3>${esc(group.label)}</h3><div class="mobile-module-grid">${group.items.map(({id,mobileLabel,shortcut})=>{const selected=!shortcut&&active===id;return `<button type="button" data-cloud-nav="${id}"${shortcut?' data-cloud-shortcut="payment"':''} class="mobile-module-card ${selected?'active':''}"${selected?' aria-current="page"':''}><span>${esc(mobileLabel)}</span></button>`;}).join('')}</div></section>`).join('');
 }
 export function mobilePageLabel(user,active){const item=navigationFor(user).find(entry=>entry.id===active);return mobileLabelFor(active,item?.label??'Menu');}
 export function esc(value){return String(value??'').replace(/[&<>\"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char]));}
