@@ -11,5 +11,6 @@ test('shell do PWA possui layout próprio e espaçamento responsivo do conteúdo
   assert.match(styles,/\.cloud-shell #cloud-view\{/,'conteúdo cloud precisa de padding próprio');
   assert.match(styles,/\.sidebar-foot\{/,'rodapé do usuário precisa de layout próprio');
   assert.match(paymentStyles,/grid-template-columns:minmax\(0,1fr\)/,'grid mobile não pode crescer pela largura mínima da navegação');
+  assert.match(paymentStyles,/grid-template-rows:auto 1fr/,'sidebar mobile não pode ocupar metade da altura da tela');
   assert.match(paymentStyles,/\.sidebar\{min-width:0;overflow:hidden/,'sidebar mobile precisa conter o scroll horizontal no próprio menu');
 });
