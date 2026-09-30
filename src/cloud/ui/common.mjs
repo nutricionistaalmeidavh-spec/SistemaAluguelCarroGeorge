@@ -12,7 +12,8 @@ export const PWA_NAV=Object.freeze([
   Object.freeze({id:'contracts',label:'Contratos',permission:'contracts.read'}),
   Object.freeze({id:'documents',label:'Documentos',permission:'documents.read'}),
   Object.freeze({id:'alerts',label:'Alertas',permission:'alerts.read'}),
-  Object.freeze({id:'maintenance',label:'Manutenção',permission:'maintenance.read'})
+  Object.freeze({id:'maintenance',label:'Manutenção',permission:'maintenance.read'}),
+  Object.freeze({id:'administration',label:'Administração',permission:'admin.access'})
 ]);
 
 export function navigationFor(user){return PWA_NAV.filter(item=>item.permission==null||can(user,item.permission));}

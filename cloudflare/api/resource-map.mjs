@@ -18,6 +18,7 @@ const definitions={
   contractTemplates:readOnly('contract_templates','contracts.read',['name','body','active','is_default AS isDefault','template_version AS templateVersion']),
   issuedContracts:readOnly('issued_contracts','contracts.read',['rental_id AS rentalId','template_id AS templateId','template_name AS templateName','template_version AS templateVersion','rendered_text AS renderedText']),
   alertState:readOnly('alert_state','alerts.read',['state_json AS stateJson']),
+  appSettings:{table:'app_settings',readPermission:'rental.read',writePermission:null,read:['installation_id AS id','settings_json AS settingsJson','updated_at AS updatedAt','version','updated_by_device AS updatedByDevice'],writable:{},required:[],collectionMethods:['GET'],itemMethods:[],softDelete:false,orderBy:'updated_at DESC',idColumn:'installation_id'},
   attachments:readOnly('attachments','documents.read',['entity_type AS entityType','entity_id AS entityId','mime_type AS mimeType','size_bytes AS sizeBytes','sha256','created_by AS createdBy','status'])
 };
 

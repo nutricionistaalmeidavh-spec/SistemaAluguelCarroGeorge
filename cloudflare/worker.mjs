@@ -7,6 +7,7 @@ import { handleRentalRoute,isRentalOperationRoute } from './api/rental-routes.mj
 import { handleSyncRoute,isSyncRoute } from './api/sync-routes.mjs';
 import { handleDeviceManagementRoute,isDeviceManagementRoute } from './api/device-routes.mjs';
 import { handleBackupRoute,isBackupRoute } from './api/backup-routes.mjs';
+import { handleAdminRoute,isAdminRoute } from './api/admin-routes.mjs';
 import { handleReplicaRoute,isReplicaRoute } from './api/replica-routes.mjs';
 import { handleMigrationRoute,isMigrationRoute } from './api/migration-routes.mjs';
 import { handleParityCommandRoute,isParityCommandRoute } from './api/parity-command-routes.mjs';
@@ -23,7 +24,7 @@ function json(body,status=200,headers={}){return new Response(JSON.stringify(bod
 export function normalizeBindings(env={}){const DB=env.DB??env.Bd??env.bd??env.db;const ATTACHMENTS=env.ATTACHMENTS??env.r2??env.R2;if(DB===env.DB&&ATTACHMENTS===env.ATTACHMENTS)return env;return {...env,DB,ATTACHMENTS};}
 async function authFor(request,env){return await resolveSession(request,env)||await resolveDeviceCredential(request,env);}
 function isMutation(method){return ['POST','PUT','PATCH','DELETE'].includes(String(method).toUpperCase());}
-function requiresGeneration(pathname,method){if(!isMutation(method)||!pathname.startsWith(`${API_PREFIX}/`))return false;if(pathname.startsWith(`${API_PREFIX}/auth/`))return false;if(pathname.startsWith(`${API_PREFIX}/devices`))return false;if(pathname.startsWith(`${API_PREFIX}/sessions`))return false;if(pathname.startsWith(`${API_PREFIX}/backups`))return false;if(pathname.startsWith(`${API_PREFIX}/migration`))return false;return true;}
+function requiresGeneration(pathname,method){if(!isMutation(method)||!pathname.startsWith(`${API_PREFIX}/`))return false;if(pathname.startsWith(`${API_PREFIX}/auth/`))return false;if(pathname.startsWith(`${API_PREFIX}/devices`))return false;if(pathname.startsWith(`${API_PREFIX}/sessions`))return false;if(pathname.startsWith(`${API_PREFIX}/backups`))return false;if(pathname.startsWith(`${API_PREFIX}/admin`))return false;if(pathname.startsWith(`${API_PREFIX}/migration`))return false;return true;}
 async function generationFor(request,env,auth){const generation=await checkSyncGeneration(request,env.DB,auth);if(generation.ok)return generation;return {...generation,response:json({ok:false,error:generation.error,restoreGeneration:generation.serverGeneration,clientGeneration:generation.clientGeneration},409)};}
 async function withGeneration(response,generation){return generation?decorateSyncResponse(response,generation.serverGeneration):response;}
 
@@ -37,6 +38,7 @@ async function dispatch(request,env,ctx){
     const auth=await authFor(request,env);let generation=null;if(requiresGeneration(url.pathname,request.method)){generation=await generationFor(request,env,auth);if(generation.response)return generation.response;}
     if(isDeviceManagementRoute(request))return handleDeviceManagementRoute(request,env,ctx,{auth});
     if(isBackupRoute(request))return handleBackupRoute(request,env,ctx,{auth});
+    if(isAdminRoute(request))return handleAdminRoute(request,env,ctx,{auth});
     if(isMigrationRoute(request))return handleMigrationRoute(request,env,ctx,{auth});
     if(isReplicaRoute(request))return handleReplicaRoute(request,env,ctx,{auth});
     if(isAttachmentRoute(request))return withGeneration(await handleAttachmentRoute(request,env,ctx,{auth}),generation);

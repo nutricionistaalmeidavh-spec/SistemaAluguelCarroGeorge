@@ -32,6 +32,7 @@ test('cloud delta cache understands the new parity entities',async()=>{
   assert.equal((await cache.getResource('billingPlans'))[0].id,'PLAN-1');assert.equal((await cache.getResource('collectionActions'))[0].id,'COL-1');assert.equal((await cache.getResource('contractTemplates'))[0].id,'TPL-1');assert.equal((await cache.getResource('issuedContracts'))[0].id,'ISS-1');assert.equal((await cache.getResource('alertState'))[0].id,'ALT-1');assert.equal((await cache.getResource('ledger'))[0].id,'FIN-1');assert.equal((await cache.getResource('inspectionItems'))[0].id,'ITM-1');
 });
 
-test('PWA navigation includes all 12 approved operational modules',()=>{
-  assert.deepEqual(PWA_NAV.map(item=>item.label),['Visão geral','Clientes','Frota','Locações','Vistorias','Financeiro','Cobranças','Inadimplência','Contratos','Documentos','Alertas','Manutenção']);
+test('PWA navigation preserves all 12 approved operational modules',()=>{
+  const operational=PWA_NAV.filter(item=>item.id!=='administration');
+  assert.deepEqual(operational.map(item=>item.label),['Visão geral','Clientes','Frota','Locações','Vistorias','Financeiro','Cobranças','Inadimplência','Contratos','Documentos','Alertas','Manutenção']);
 });

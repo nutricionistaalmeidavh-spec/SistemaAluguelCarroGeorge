@@ -8,7 +8,8 @@ const JSON_HEADERS=Object.freeze({'content-type':'application/json; charset=utf-
 const MAX_JSON_BYTES=1_000_000,MAX_OPERATIONS=50,MAX_CHANGE_LIMIT=200;
 const OPERATIONS_PATH=new RegExp(`^${API_PREFIX}/sync/operations/?$`),CHANGES_PATH=new RegExp(`^${API_PREFIX}/sync/changes/?$`);
 const ENTITY_RESOURCE=Object.freeze({customer:'customers',vehicle:'vehicles'});
-const CHANGE_READ_PERMISSION=Object.freeze({customer:'customer.read',vehicle:'vehicle.read',rental:'rental.read',rentalPayment:'finance.read',billingPayment:'billing.read',attachment:'documents.read',inspection:'inspection.read',maintenance:'maintenance.read'});
+const CHANGE_READ_PERMISSION=Object.freeze({customer:'customer.read',vehicle:'vehicle.read',rental:'rental.read',rentalPayment:'finance.read',billingPayment:'billing.read',attachment:'documents.read',inspection:'inspection.read',maintenance:'maintenance.read',appSettings:'rental.read'});
+const SETTINGS_LIMITS=Object.freeze({companyName:160,document:64,phone:64,address:500});
 
 function json(body,status=200,headers={}){return new Response(JSON.stringify(body),{status,headers:{...JSON_HEADERS,...headers}});}
 function session(value){return value?.installationId&&value?.userId?value:null;}
@@ -30,11 +31,30 @@ async function readJson(request){
 function conflict(current,operationId){fail('version_conflict',409,{current,operationId});}
 function publicCreateItem(resource,id,input,now,deviceId){const item={id,...input,createdAt:now,updatedAt:now,version:1,updatedByDevice:deviceId??null};if(resource==='customers'&&!Object.hasOwn(item,'active'))item.active=1;return item;}
 function authorizedChange(actor,change){const permission=CHANGE_READ_PERMISSION[change.entityType];return permission?canCloud(actor,permission):canCloud(actor,'*');}
+function parseSettings(value){try{return value?JSON.parse(String(value)):{};}catch{return{};}}
+function cleanSettings(input,current={}){const next={...current},changed=[];for(const [key,max] of Object.entries(SETTINGS_LIMITS))if(Object.hasOwn(input??{},key)){next[key]=String(input[key]??'').trim().slice(0,max);changed.push(key);}return{next,changed};}
+
+async function applySettingsOperation(db,actor,rawOperation,operationId){
+  if(!canCloud(actor,'*'))fail('forbidden',403);
+  const payload=rawOperation?.payload&&typeof rawOperation.payload==='object'?rawOperation.payload:{},data=payload.data&&typeof payload.data==='object'&&!Array.isArray(payload.data)?payload.data:null;
+  const baseVersion=scalarVersion(payload.expectedVersion??rawOperation?.baseVersion);if(baseVersion==null)fail('base_version_required');if(!data)fail('invalid_request');
+  const current=await db.prepare('SELECT settings_json AS settingsJson,version,updated_at AS updatedAt,updated_by_device AS updatedByDevice FROM app_settings WHERE installation_id=? LIMIT 1').bind(actor.installationId).first();
+  if(!current)fail('not_found',404);const currentItem={id:actor.installationId,settings:parseSettings(current.settingsJson),version:Number(current.version),updatedAt:current.updatedAt,updatedByDevice:current.updatedByDevice};if(Number(current.version)!==baseVersion)conflict(currentItem,operationId);
+  const {next,changed}=cleanSettings(data,currentItem.settings);if(!changed.length)fail('invalid_request');
+  const now=stamp(),entityVersion=baseVersion+1,deviceId=actor.deviceId??null,changePayload={id:actor.installationId,settingsJson:JSON.stringify(next),updatedAt:now,version:entityVersion,updatedByDevice:deviceId},item={id:actor.installationId,settings:next,version:entityVersion,updatedAt:now,updatedByDevice:deviceId};
+  const guardSql='EXISTS (SELECT 1 FROM app_settings WHERE installation_id=? AND version=? AND updated_at=?)',guardParams=[actor.installationId,entityVersion,now];
+  const update=db.prepare('UPDATE app_settings SET settings_json=?,updated_at=?,version=version+1,updated_by_device=? WHERE installation_id=? AND version=?').bind(changePayload.settingsJson,now,deviceId,actor.installationId,baseVersion);
+  const auditId=`AUD-${crypto.randomUUID()}`,audit=db.prepare(`INSERT INTO audit_log (id,installation_id,actor_id,action,entity_type,entity_id,details_json,at,created_at,updated_at,version,updated_by_device,deleted_at) SELECT ?,?,?,?,?,?,?,?,?,?,1,?,NULL WHERE ${guardSql}`).bind(auditId,actor.installationId,actor.userId,'settings.update','app_settings',actor.installationId,JSON.stringify({changed}),now,now,now,deviceId,...guardParams);
+  const change=appendChangeStatement(db,{operationId,installationId:actor.installationId,deviceId,entityType:'appSettings',entityId:actor.installationId,operation:'update',baseVersion,entityVersion,payload:changePayload,createdAt:now,guardSql,guardParams});
+  const result=await db.batch([update,audit,change]);if(Number(result?.[0]?.meta?.changes??0)!==1||Number(result?.[2]?.meta?.changes??0)!==1){const latest=await db.prepare('SELECT settings_json AS settingsJson,version,updated_at AS updatedAt,updated_by_device AS updatedByDevice FROM app_settings WHERE installation_id=? LIMIT 1').bind(actor.installationId).first();conflict(latest?{id:actor.installationId,settings:parseSettings(latest.settingsJson),version:Number(latest.version),updatedAt:latest.updatedAt,updatedByDevice:latest.updatedByDevice}:null,operationId);}
+  const applied=await findChangeByOperationId(db,actor.installationId,operationId);return{status:'applied',operationId,item,change:applied};
+}
 
 async function applyOperation(db,actor,rawOperation){
   const operationId=validId(rawOperation?.operationId),previous=await findChangeByOperationId(db,actor.installationId,operationId);
   if(previous)return{status:'replayed',operationId,item:previous.payload?.deleted?null:previous.payload,change:previous};
   if(!canCloud(actor,'sync.write'))fail('forbidden',403);
+  if(rawOperation?.kind==='settings.update')return applySettingsOperation(db,actor,rawOperation,operationId);
   const {entityType,resource,action}=operationParts(rawOperation?.kind),def=getResourceDefinition(resource);
   if(!def||!def.writePermission||!canCloud(actor,def.writePermission))fail('forbidden',403);
   if(!db?.batch)fail('database_unavailable',503);
