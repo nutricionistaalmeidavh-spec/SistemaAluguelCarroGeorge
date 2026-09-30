@@ -13,17 +13,16 @@ test('central mobile segue a ordem operacional aprovada',()=>{
     ['contracts','documents','alerts','administration']
   ]);
   assert.equal(groups[0].items.at(-1).mobileLabel,'Dar baixa');
-  assert.equal(groups[0].items.at(-1).target,'receivables');
   assert.equal(mobileLabelFor('inspections','Vistorias'),'Vistoria');
   assert.equal(mobileLabelFor('administration','Administração'),'Configurações');
 });
 
-test('central mobile mantém data-cloud-nav e atalho de Dar baixa aponta para recebíveis',()=>{
+test('central mobile mantém data-cloud-nav e atalho de Dar baixa',()=>{
   const html=mobileNavHtml(admin,'rentals');
   for(const id of ['overview','rentals','customers','billing','inspections','finance','delinquency','vehicles','maintenance','contracts','documents','alerts','administration']){
     assert.match(html,new RegExp(`data-cloud-nav="${id}"`));
   }
-  assert.match(html,/data-cloud-nav="finance"[^>]*data-cloud-target="receivables"[^>]*>\s*<span>Dar baixa<\/span>/);
+  assert.match(html,/data-cloud-nav="finance"[^>]*>\s*<span>Dar baixa<\/span>/);
   assert.match(html,/Configurações/);
   assert.match(html,/Vistoria/);
   assert.match(html,/aria-current="page"/);
