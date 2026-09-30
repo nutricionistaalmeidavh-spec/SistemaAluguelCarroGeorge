@@ -26,7 +26,7 @@ async function launchCloudPwa(){
       await page.locator('.mobile-appbar[for="cloud-mobile-menu"]').click();
       await page.waitForFunction(()=>document.querySelector('#cloud-mobile-menu')?.checked===true);
     }
-    await page.locator(`[data-test="mobile-module-central"] [data-cloud-nav="${id}"]`).click();
+    await page.locator(`[data-test="mobile-module-central"] [data-cloud-nav="${id}"]:not([data-cloud-shortcut])`).click();
   }
   return{db,r2,env,server,browser,context,page,baseUrl,installationId,email,password,openModule,async login(){await page.locator('#cloud-login input[name="username"]').fill(email);await page.locator('#cloud-login input[name="password"]').fill(password);await page.locator('#cloud-login button').click();await page.locator('.mobile-appbar[for="cloud-mobile-menu"]').waitFor();await page.evaluate(()=>navigator.serviceWorker?.ready);},async close(){try{await context.close();}catch{}try{await browser.close();}catch{}await new Promise(resolve=>server.close(()=>resolve()));db.close();}};
 }
