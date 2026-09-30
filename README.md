@@ -17,7 +17,7 @@ A antiga sincronização por servidor LAN não participa mais do fluxo de produ�
 
 ## Funcionalidades
 
-- Agenda e reservas com bloqueio de conflito por veículo e período.
+- Agenda e locações com bloqueio de conflito por veículo e período.
 - Clientes e frota.
 - Locações fixas e contínuas.
 - Cobrança total ou por diária.
