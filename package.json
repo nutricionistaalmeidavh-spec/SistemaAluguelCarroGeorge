@@ -50,6 +50,7 @@
       "styles.css",
       "styles-p1.css",
       "styles-p2.css",
+      "styles-payments.css",
       "src/**/*",
       "electron/**/*",
       "db/**/*",
