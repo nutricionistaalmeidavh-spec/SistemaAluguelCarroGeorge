@@ -5,7 +5,7 @@ const {launchCloudPwa}=require('./fixtures/cloud-pwa.cjs');
 
 test('PWA mobile administra empresa, auditoria, backups e dispositivos sem Electron',async t=>{
   const fx=await launchCloudPwa();t.after(()=>fx.close());const {page,db,installationId}=fx;await fx.login();
-  await page.locator('[data-cloud-nav="administration"]').click();
+  await fx.openModule('administration');
   await page.locator('[data-test="admin-screen"]').waitFor();
   for(const selector of ['[data-test="admin-settings"]','[data-test="admin-backups"]','[data-test="admin-devices"]','[data-test="admin-audit"]'])assert.equal(await page.locator(selector).isVisible(),true,`${selector} deveria estar visível`);
 
