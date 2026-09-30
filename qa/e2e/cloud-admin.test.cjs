@@ -28,6 +28,6 @@ test('PWA mobile administra empresa, auditoria, backups e dispositivos sem Elect
 
   await page.locator('#admin-restore-cancel').click();
   const devices=page.locator('[data-admin-devices-body] tr');assert.ok(await devices.count()>=1,'deveria listar o PWA autenticado como dispositivo');
-  await page.locator('#admin-audit-filter input[name="action"]').fill('settings.update');await page.locator('#admin-audit-filter button[type="submit"]').click();
+  await page.locator('#admin-audit-filter input[name="action"]').fill('settings.update');await page.getByRole('button',{name:'Filtrar'}).click();
   await page.locator('[data-admin-audit-body]').getByText('settings.update').waitFor();
 });
