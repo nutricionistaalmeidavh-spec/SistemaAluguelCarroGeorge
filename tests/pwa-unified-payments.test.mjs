@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { paymentPlanForRental, paymentTargetForLedger } from '../src/cloud/ui/payment-flow.mjs';
 import { rentalsHtml } from '../src/cloud/ui/rentals.mjs';
 import { financeHtml } from '../src/cloud/ui/finance.mjs';
@@ -80,4 +81,15 @@ test('Cobranças agrupa parcelas por cliente/locação e ordena os vencimentos n
   assert.match(html,/Parcial/);
   assert.match(html,/Pago/);
   assert.doesNotMatch(html,/>open</);
+});
+
+test('folha da nova UI entra no pacote cloud e no cache do PWA',async()=>{
+  const [prepare,sw,pkg]=await Promise.all([
+    readFile(new URL('../scripts/prepare-cloud-assets.mjs',import.meta.url),'utf8'),
+    readFile(new URL('../sw.js',import.meta.url),'utf8'),
+    readFile(new URL('../package.json',import.meta.url),'utf8')
+  ]);
+  assert.match(prepare,/styles-payments\.css/,'build cloud deve copiar a folha nova');
+  assert.match(sw,/styles-payments\.css/,'service worker deve versionar/cachear a folha nova');
+  assert.match(pkg,/styles-payments\.css/,'build desktop não deve referenciar um arquivo ausente');
 });
