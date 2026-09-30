@@ -23,13 +23,18 @@ const snapshot={customers:[customer],vehicles:[vehicle],rentals:[rental],billing
 function shell(view,content){return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><div class="app-shell cloud-shell"><aside class="sidebar"><div class="brand"><span class="brandmark">LV</span><div><small>ARTISYS</small><strong>Locadora George</strong></div></div><nav>${navHtml(user,view)}</nav><div class="sidebar-foot"><small>George</small><button type="button">Sair</button></div></aside><main class="workspace"><header class="topbar"><div><strong>Sincronizado</strong><small>Sessão validada pelo servidor</small></div><div class="actions"><button type="button">Atualizar</button><button type="button">Sincronizar</button></div></header><section id="cloud-view">${content}</section></main></div></body></html>`;}
 
 const screens=[
-  ['01-cobrancas-mobile.png','billing',billingHtml(snapshot,user)],
-  ['02-locacoes-mobile.png','rentals',rentalsHtml(snapshot,user)],
-  ['03-financeiro-mobile.png','finance',financeHtml(snapshot,user)]
+  ['00-central-modulos-mobile.png','rentals',rentalsHtml(snapshot,user),true],
+  ['01-cobrancas-mobile.png','billing',billingHtml(snapshot,user),false],
+  ['02-locacoes-mobile.png','rentals',rentalsHtml(snapshot,user),false],
+  ['03-financeiro-mobile.png','finance',financeHtml(snapshot,user),false]
 ];
 const browser=await chromium.launch({headless:true});
 try{
   const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
-  for(const [file,view,content] of screens){await page.setContent(shell(view,content),{waitUntil:'load'});await page.screenshot({path:join(out,file),fullPage:true});}
+  for(const [file,view,content,openMenu] of screens){
+    await page.setContent(shell(view,content),{waitUntil:'load'});
+    if(openMenu)await page.locator('#cloud-mobile-menu').check({force:true});
+    await page.screenshot({path:join(out,file),fullPage:true});
+  }
 }finally{await browser.close();}
 console.log(`Capturas PWA salvas em ${out}`);
