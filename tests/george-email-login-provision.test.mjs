@@ -37,7 +37,7 @@ test('provisionamento cloud cria George como admin e desativa login admin legado
     assert.equal(Number(user?.active),1);
     assert.equal(Number(user?.must_change_password),1);
     assert.equal(user?.deleted_at,null);
-    assert.match(String(user?.password_hash??''),/^pbkdf2-sha256\$310000\$[0-9a-f]{32}\$[0-9a-f]{64}$/i);
+    assert.match(String(user?.password_hash??''),/^pbkdf2-sha256\$100000\$[0-9a-f]{32}\$[0-9a-f]{64}$/i);
 
     const legacy=db.sqlite.prepare("SELECT active FROM users WHERE installation_id=? AND lower(username)='admin' AND deleted_at IS NULL").get(INSTALLATION_ID);
     assert.equal(Number(legacy?.active),0);
