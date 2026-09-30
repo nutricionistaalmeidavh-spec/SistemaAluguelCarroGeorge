@@ -66,3 +66,18 @@ test('Locações, Cobranças e Financeiro expõem Dar baixa sem formulário sepa
   assert.doesNotMatch(finance,/Receber diária/);
   assert.doesNotMatch(finance,/cloud-payment-form/);
 });
+
+test('Cobranças agrupa parcelas por cliente/locação e ordena os vencimentos no celular',()=>{
+  const snap=snapshot();
+  snap.billingInstallments=[snap.billingInstallments[2],snap.billingInstallments[0],snap.billingInstallments[1]];
+  const html=billingHtml(snap,admin);
+  assert.match(html,/data-billing-customer="CUS-1"/);
+  assert.match(html,/data-billing-rental="LOC-D"/);
+  assert.equal((html.match(/George Cliente/g)||[]).length,1,'cliente deve aparecer uma vez como cabeçalho do grupo');
+  const first=html.indexOf('01\/09\/2026'),second=html.indexOf('02\/09\/2026'),third=html.indexOf('03\/09\/2026');
+  assert.ok(first>=0&&first<second&&second<third,'parcelas devem aparecer em ordem cronológica');
+  assert.match(html,/Em aberto/);
+  assert.match(html,/Parcial/);
+  assert.match(html,/Pago/);
+  assert.doesNotMatch(html,/>open</);
+});
