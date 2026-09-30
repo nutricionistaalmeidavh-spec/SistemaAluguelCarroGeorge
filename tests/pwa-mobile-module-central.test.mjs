@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { mobileNavigationGroups,mobileNavHtml,mobileLabelFor } from '../src/cloud/ui/common.mjs';
+import { mobileNavigationGroups,mobileNavHtml,mobileLabelFor,navHtml } from '../src/cloud/ui/common.mjs';
 
 const admin={id:'USR',role:'admin',permissions:['*']};
 
@@ -26,16 +26,15 @@ test('central mobile mantém data-cloud-nav e não duplica permissões',()=>{
   assert.match(html,/aria-current="page"/);
 });
 
-test('shell mobile usa central de módulos em vez de navegação horizontal',async()=>{
-  const [app,styles]=await Promise.all([
-    readFile(new URL('../src/cloud-app.mjs',import.meta.url),'utf8'),
-    readFile(new URL('../styles.css',import.meta.url),'utf8')
-  ]);
-  assert.match(app,/id="cloud-mobile-menu"/);
-  assert.match(app,/data-test="mobile-module-central"/);
-  assert.match(app,/mobileNavHtml\(user,safeView\)/);
+test('nav mobile usa botão único e central de módulos em vez de scroll horizontal',async()=>{
+  const html=navHtml(admin,'rentals');
+  const styles=await readFile(new URL('../styles-payments.css',import.meta.url),'utf8');
+  assert.match(html,/id="cloud-mobile-menu"/);
+  assert.match(html,/data-test="mobile-module-central"/);
+  assert.match(html,/Central de módulos/);
+  assert.match(html,/>Locações</);
   assert.match(styles,/\.mobile-appbar\{/);
-  assert.match(styles,/\.mobile-module-grid\{/);
-  assert.match(styles,/@media\(max-width:900px\)[\s\S]*?\.cloud-shell \.sidebar\{display:none/);
-  assert.doesNotMatch(styles,/@media\(max-width:900px\)[\s\S]*?\.sidebar nav\{display:flex;overflow:auto/);
+  assert.match(styles,/\.mobile-module-grid\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(styles,/@media\(max-width:900px\)[\s\S]*?\.desktop-nav-list\{display:none\}/);
+  assert.match(styles,/@media\(max-width:900px\)[\s\S]*?\.sidebar nav\{display:block;[\s\S]*?overflow:visible\}/);
 });
