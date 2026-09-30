@@ -22,7 +22,8 @@ test('central mobile mantém data-cloud-nav e atalho de Dar baixa',()=>{
   for(const id of ['overview','rentals','customers','billing','inspections','finance','delinquency','vehicles','maintenance','contracts','documents','alerts','administration']){
     assert.match(html,new RegExp(`data-cloud-nav="${id}"`));
   }
-  assert.match(html,/data-cloud-nav="finance"[^>]*>\s*<span>Dar baixa<\/span>/);
+  assert.match(html,/data-cloud-nav="finance" data-cloud-shortcut="payment"[^>]*>\s*<span>Dar baixa<\/span>/);
+  assert.match(html,/data-cloud-nav="finance"(?! data-cloud-shortcut="payment")[^>]*>\s*<span>Financeiro<\/span>/);
   assert.match(html,/Configurações/);
   assert.match(html,/Vistoria/);
   assert.match(html,/aria-current="page"/);
