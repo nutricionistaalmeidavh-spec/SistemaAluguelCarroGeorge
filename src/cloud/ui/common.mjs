@@ -16,7 +16,24 @@ export const PWA_NAV=Object.freeze([
   Object.freeze({id:'administration',label:'Administração',permission:'admin.access'})
 ]);
 
+export const MOBILE_NAV_GROUPS=Object.freeze([
+  Object.freeze({label:'Operação',ids:Object.freeze(['overview','rentals','customers','billing','inspections'])}),
+  Object.freeze({label:'Gestão',ids:Object.freeze(['finance','delinquency','vehicles','maintenance'])}),
+  Object.freeze({label:'Documentos e sistema',ids:Object.freeze(['contracts','documents','alerts','administration'])})
+]);
+
+const MOBILE_NAV_LABELS=Object.freeze({inspections:'Vistoria',administration:'Configurações'});
+
 export function navigationFor(user){return PWA_NAV.filter(item=>item.permission==null||can(user,item.permission));}
+export function mobileLabelFor(id,fallback=''){return MOBILE_NAV_LABELS[id]??fallback;}
+export function mobileNavigationGroups(user){
+  const allowed=new Map(navigationFor(user).map(item=>[item.id,item]));
+  return MOBILE_NAV_GROUPS.map(group=>({label:group.label,items:group.ids.map(id=>allowed.get(id)).filter(Boolean)})).filter(group=>group.items.length);
+}
+export function mobileNavHtml(user,active){
+  return mobileNavigationGroups(user).map(group=>`<section class="mobile-module-group"><h3>${esc(group.label)}</h3><div class="mobile-module-grid">${group.items.map(({id,label})=>`<button type="button" data-cloud-nav="${id}" class="mobile-module-card ${active===id?'active':''}"${active===id?' aria-current="page"':''}><span>${esc(mobileLabelFor(id,label))}</span></button>`).join('')}</div></section>`).join('');
+}
+export function mobilePageLabel(user,active){const item=navigationFor(user).find(entry=>entry.id===active);return mobileLabelFor(active,item?.label??'Menu');}
 export function esc(value){return String(value??'').replace(/[&<>\"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char]));}
 export function money(value){return Number(value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
 export function shortDate(value){if(!value)return'-';const date=new Date(String(value).length<=10?`${value}T12:00:00`:value);return Number.isFinite(date.getTime())?date.toLocaleDateString('pt-BR'):String(value);}
