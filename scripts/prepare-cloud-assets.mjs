@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 const output=join(root,'.cloudflare','public');
-const files=['index.html','security.html','styles.css','styles-p1.css','styles-p2.css','manifest.webmanifest','sw.js'];
+const files=['index.html','security.html','styles.css','styles-p1.css','styles-p2.css','styles-payments.css','manifest.webmanifest','sw.js'];
 const directories=['src','assets',join('vendor','sqlite')];
 
 await rm(output,{recursive:true,force:true});
