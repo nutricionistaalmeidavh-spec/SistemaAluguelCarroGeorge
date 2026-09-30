@@ -19,6 +19,15 @@ async function launchCloudPwa(){
   db.sqlite.prepare('INSERT INTO users (id,installation_id,username,name,role,active,password_hash,must_change_password,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(userId,installationId,email,'George Admin','admin',1,passwordHash,0,now,now);
   const env={DB:db,ATTACHMENTS:r2,ASSETS:assetsBinding()},server=await startHttp(workerModule.default,env),baseUrl=`http://127.0.0.1:${server.address().port}`,browser=await launchChrome(),context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'allow'}),page=await context.newPage();
   await page.goto(baseUrl,{waitUntil:'domcontentloaded'});
-  return{db,r2,env,server,browser,context,page,baseUrl,installationId,email,password,async login(){await page.locator('#cloud-login input[name="username"]').fill(email);await page.locator('#cloud-login input[name="password"]').fill(password);await page.locator('#cloud-login button').click();await page.locator('[data-cloud-nav="overview"]').waitFor();await page.evaluate(()=>navigator.serviceWorker?.ready);},async close(){try{await context.close();}catch{}try{await browser.close();}catch{}await new Promise(resolve=>server.close(()=>resolve()));db.close();}};
+  async function openModule(id){
+    const toggle=page.locator('#cloud-mobile-menu');
+    await toggle.waitFor({state:'attached'});
+    if(!await toggle.isChecked()){
+      await page.locator('.mobile-appbar[for="cloud-mobile-menu"]').click();
+      await page.waitForFunction(()=>document.querySelector('#cloud-mobile-menu')?.checked===true);
+    }
+    await page.locator(`[data-test="mobile-module-central"] [data-cloud-nav="${id}"]`).click();
+  }
+  return{db,r2,env,server,browser,context,page,baseUrl,installationId,email,password,openModule,async login(){await page.locator('#cloud-login input[name="username"]').fill(email);await page.locator('#cloud-login input[name="password"]').fill(password);await page.locator('#cloud-login button').click();await page.locator('.mobile-appbar[for="cloud-mobile-menu"]').waitFor();await page.evaluate(()=>navigator.serviceWorker?.ready);},async close(){try{await context.close();}catch{}try{await browser.close();}catch{}await new Promise(resolve=>server.close(()=>resolve()));db.close();}};
 }
 module.exports={launchCloudPwa};

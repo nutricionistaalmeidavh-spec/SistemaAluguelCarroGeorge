@@ -28,13 +28,13 @@ const snapshot={
   alertState:{},maintenance:[{id:'MNT-1',vehicleId:'VEI-1',type:'Óleo',dueAt:'2026-09-20',status:'scheduled',costEstimate:150,version:1}],settings:{}
 };
 
-test('rentals mobile exposes creation, lifecycle, continuous close and payment actions in the applicable states',()=>{
-  const reservation=rentalsHtml(snapshot,admin);assert.match(reservation,/Nova locação/);assert.match(reservation,/data-rental-advance/);assert.match(reservation,/data-rental-pay/);assert.match(reservation,/periodMode/);
+test('rentals mobile exposes creation, lifecycle, continuous close and unified payment actions in the applicable states',()=>{
+  const reservation=rentalsHtml(snapshot,admin);assert.match(reservation,/Nova locação/);assert.match(reservation,/data-rental-advance/);assert.match(reservation,/data-payment-rental/);assert.match(reservation,/Dar baixa/);assert.match(reservation,/periodMode/);
   const continuous=structuredClone(snapshot);continuous.rentals=[{...continuous.rentals[0],id:'LOC-CONT',periodMode:'continuous',returnAt:null,status:'em_uso',billingMode:'daily',continuousClosedAt:null}];
   assert.match(rentalsHtml(continuous,admin),/data-rental-close/);
 });
 test('inspection mobile exposes complete checklist, multi-photo and PDF/history',()=>{const html=inspectionsHtml(snapshot,admin);assert.match(html,/checklist/);assert.match(html,/multiple/);assert.match(html,/data-inspection-pdf/);assert.match(html,/Avarias/);});
-test('finance and billing expose desktop-equivalent receivables, expenses and plans',()=>{assert.match(financeHtml(snapshot,admin),/Nova despesa/);assert.match(financeHtml(snapshot,admin),/Caixa líquido/);assert.match(billingHtml(snapshot,admin),/Novo plano/);assert.match(billingHtml(snapshot,admin),/Receber parcela/);});
+test('finance and billing expose unified receivable payment actions, expenses and plans',()=>{const finance=financeHtml(snapshot,admin),billing=billingHtml(snapshot,admin);assert.match(finance,/Nova despesa/);assert.match(finance,/Caixa líquido/);assert.match(finance,/data-payment-ledger/);assert.match(finance,/Dar baixa/);assert.doesNotMatch(finance,/Receber diária/);assert.match(billing,/Novo plano/);assert.match(billing,/data-installment-pay/);assert.match(billing,/Dar baixa/);});
 test('delinquency exposes aging and collection action',()=>{const html=delinquencyHtml(snapshot,admin,new Date('2026-09-30T12:00:00Z'));assert.match(html,/Inadimplência/);assert.match(html,/data-collection-action/);assert.match(html,/dias em atraso/);});
 test('contracts and documents expose template issuance and persisted PDFs',()=>{const contracts=contractsHtml(snapshot,admin),docs=documentsHtml(snapshot,admin);assert.match(contracts,/Novo modelo/);assert.match(contracts,/data-contract-issue/);assert.match(docs,/Contratos emitidos/);assert.match(docs,/Vistoria/);});
 test('alerts and maintenance expose operational actions',()=>{assert.match(alertsHtml(snapshot,admin),/data-alert-ack/);const maintenance=maintenanceHtml(snapshot,admin);assert.match(maintenance,/Agendar manutenção/);assert.match(maintenance,/data-maintenance-start/);});
