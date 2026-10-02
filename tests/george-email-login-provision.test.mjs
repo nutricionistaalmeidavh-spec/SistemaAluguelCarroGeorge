@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { FakeD1 } from './helpers/fake-d1.mjs';
-import { ensureGeorgeAdmin } from '../cloudflare/auth/george-provision.mjs';
+import { DEMO_INSTALLATION_ID,ensureGeorgeAdmin,loginInstallation } from '../cloudflare/auth/george-provision.mjs';
 import { handleAuthRoute } from '../cloudflare/api/auth-routes.mjs';
 
 const INSTALLATION_ID='LOCADORA-GEORGE';
@@ -23,7 +23,7 @@ test('login cloud fixa a instalação do George e mostra apenas e-mail e senha',
   assert.match(index,/src\/bootstrap\.mjs/);
 });
 
-test('provisionamento cloud cria George e Victor Demo como admins e desativa login admin legado',async()=>{
+test('provisionamento cloud cria George e isola Victor Demo em tenant separado',async()=>{
   const db=new FakeD1(),now='2026-09-28T01:40:00.000Z';
   try{
     db.sqlite.prepare('INSERT INTO installations (id,name,created_at,updated_at) VALUES (?,?,?,?)').run(INSTALLATION_ID,'George legado',now,now);
@@ -40,7 +40,7 @@ test('provisionamento cloud cria George e Victor Demo como admins e desativa log
     assert.equal(user?.deleted_at,null);
     assert.match(String(user?.password_hash??''),/^pbkdf2-sha256\$100000\$[0-9a-f]{32}\$[0-9a-f]{64}$/i);
 
-    const demo=db.sqlite.prepare('SELECT username,name,role,active,password_hash,must_change_password,deleted_at FROM users WHERE installation_id=? AND lower(username)=lower(?)').get(INSTALLATION_ID,DEMO_EMAIL);
+    const demo=db.sqlite.prepare('SELECT username,name,role,active,password_hash,must_change_password,deleted_at FROM users WHERE installation_id=? AND lower(username)=lower(?)').get(DEMO_INSTALLATION_ID,DEMO_EMAIL);
     assert.equal(demo?.username,DEMO_EMAIL);
     assert.equal(demo?.name,'Victor Demo');
     assert.equal(demo?.role,'admin');
@@ -48,6 +48,8 @@ test('provisionamento cloud cria George e Victor Demo como admins e desativa log
     assert.equal(Number(demo?.must_change_password),1);
     assert.equal(demo?.deleted_at,null);
     assert.match(String(demo?.password_hash??''),/^pbkdf2-sha256\$100000\$[0-9a-f]{32}\$[0-9a-f]{64}$/i);
+    assert.equal(db.sqlite.prepare('SELECT COUNT(*) AS n FROM users WHERE installation_id=? AND lower(username)=lower(?) AND active=1').get(INSTALLATION_ID,DEMO_EMAIL).n,0);
+    assert.equal(loginInstallation(INSTALLATION_ID,DEMO_EMAIL),DEMO_INSTALLATION_ID);
 
     const legacy=db.sqlite.prepare("SELECT active FROM users WHERE installation_id=? AND lower(username)='admin' AND deleted_at IS NULL").get(INSTALLATION_ID);
     assert.equal(Number(legacy?.active),0);
@@ -69,18 +71,27 @@ test('provisionamento não redefine a senha depois do primeiro acesso',async()=>
   }finally{db.close();}
 });
 
-test('provisionamento não redefine a senha da conta demo depois do primeiro acesso',async()=>{
+test('provisionamento migra a senha demo do tenant George uma única vez e depois não a redefine',async()=>{
   const db=new FakeD1();
   try{
-    await ensureGeorgeAdmin(db,{now:'2026-09-28T01:40:00.000Z'});
-    const changedHash='pbkdf2-sha256$100000$11223344556677889900aabbccddeeff$11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff';
-    db.sqlite.prepare('UPDATE users SET password_hash=?,must_change_password=0 WHERE installation_id=? AND username=?').run(changedHash,INSTALLATION_ID,DEMO_EMAIL);
+    const first='2026-09-28T01:40:00.000Z';
+    db.sqlite.prepare('INSERT INTO installations (id,name,created_at,updated_at) VALUES (?,?,?,?)').run(INSTALLATION_ID,'George',first,first);
+    const legacyHash='pbkdf2-sha256$100000$11223344556677889900aabbccddeeff$11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff';
+    db.sqlite.prepare('INSERT INTO users (id,installation_id,username,name,role,active,password_hash,must_change_password,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run('USR-VICTOR-DEMO',INSTALLATION_ID,DEMO_EMAIL,'Victor Demo','admin',1,legacyHash,0,first,first);
 
+    await ensureGeorgeAdmin(db,{now:first});
+    let user=db.sqlite.prepare('SELECT password_hash,must_change_password FROM users WHERE installation_id=? AND username=?').get(DEMO_INSTALLATION_ID,DEMO_EMAIL);
+    assert.equal(user.password_hash,legacyHash);
+    assert.equal(Number(user.must_change_password),0);
+    assert.equal(Number(db.sqlite.prepare('SELECT active FROM users WHERE installation_id=? AND username=?').get(INSTALLATION_ID,DEMO_EMAIL).active),0);
+
+    const changedHash='pbkdf2-sha256$100000$ffeeddccbbaa00998877665544332211$ffeeddccbbaa00998877665544332211ffeeddccbbaa00998877665544332211';
+    db.sqlite.prepare('UPDATE users SET password_hash=?,must_change_password=0 WHERE installation_id=? AND username=?').run(changedHash,DEMO_INSTALLATION_ID,DEMO_EMAIL);
     await ensureGeorgeAdmin(db,{now:'2026-09-29T01:40:00.000Z'});
-    const user=db.sqlite.prepare('SELECT password_hash,must_change_password FROM users WHERE installation_id=? AND username=?').get(INSTALLATION_ID,DEMO_EMAIL);
+    user=db.sqlite.prepare('SELECT password_hash,must_change_password FROM users WHERE installation_id=? AND username=?').get(DEMO_INSTALLATION_ID,DEMO_EMAIL);
     assert.equal(user.password_hash,changedHash);
     assert.equal(Number(user.must_change_password),0);
-    assert.equal(Number(db.sqlite.prepare('SELECT COUNT(*) AS n FROM users WHERE installation_id=? AND username=?').get(INSTALLATION_ID,DEMO_EMAIL).n),1);
   }finally{db.close();}
 });
 
@@ -101,6 +112,26 @@ test('provisionamento não reativa nem restaura conta do George revogada',async(
   }finally{db.close();}
 });
 
+test('login do e-mail demo resolve automaticamente o tenant isolado',async()=>{
+  const db=new FakeD1();
+  try{
+    await ensureGeorgeAdmin(db,{now:'2026-09-28T01:40:00.000Z'});
+    const service={
+      async findUser(installationId,username){
+        const effective=loginInstallation(installationId,username);
+        return db.sqlite.prepare('SELECT id,installation_id,username,name,role,active,password_hash,must_change_password FROM users WHERE installation_id=? AND username=?').get(effective,username);
+      },
+      async createSession(){return{token:'token',expiresAt:'2026-10-01T00:00:00.000Z'};},
+      async upgradePassword(){},
+      async completeFirstAccess(){}
+    };
+    const request=new Request('https://example.test/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({installationId:INSTALLATION_ID,username:DEMO_EMAIL,password:'qualquer'})});
+    const response=await handleAuthRoute(request,{DB:db},{},{service,auth:null});
+    assert.notEqual(response.status,404);
+    assert.equal(loginInstallation(INSTALLATION_ID,DEMO_EMAIL),DEMO_INSTALLATION_ID);
+  }finally{db.close();}
+});
+
 test('bootstrap de autenticação provisiona as contas sem exigir senha ou instalação do cliente',async()=>{
   const db=new FakeD1();
   try{
@@ -115,7 +146,7 @@ test('bootstrap de autenticação provisiona as contas sem exigir senha ou insta
     assert.equal(Number(george?.active),1);
     assert.equal(Number(george?.must_change_password),1);
 
-    const demo=db.sqlite.prepare('SELECT username,role,active,must_change_password FROM users WHERE installation_id=? AND username=?').get(INSTALLATION_ID,DEMO_EMAIL);
+    const demo=db.sqlite.prepare('SELECT username,role,active,must_change_password FROM users WHERE installation_id=? AND username=?').get(DEMO_INSTALLATION_ID,DEMO_EMAIL);
     assert.equal(demo?.username,DEMO_EMAIL);
     assert.equal(demo?.role,'admin');
     assert.equal(Number(demo?.active),1);
