@@ -8,6 +8,7 @@ import { handleSyncRoute,isSyncRoute } from './api/sync-routes.mjs';
 import { handleDeviceManagementRoute,isDeviceManagementRoute } from './api/device-routes.mjs';
 import { handleBackupRoute,isBackupRoute } from './api/backup-routes.mjs';
 import { handleAdminRoute,isAdminRoute } from './api/admin-routes.mjs';
+import { handleSummaryRoute,isSummaryRoute } from './api/summary-routes.mjs';
 import { handleReplicaRoute,isReplicaRoute } from './api/replica-routes.mjs';
 import { handleMigrationRoute,isMigrationRoute } from './api/migration-routes.mjs';
 import { handleParityCommandRoute,isParityCommandRoute } from './api/parity-command-routes.mjs';
@@ -39,6 +40,7 @@ async function dispatch(request,env,ctx){
     if(isDeviceManagementRoute(request))return handleDeviceManagementRoute(request,env,ctx,{auth});
     if(isBackupRoute(request))return handleBackupRoute(request,env,ctx,{auth});
     if(isAdminRoute(request))return handleAdminRoute(request,env,ctx,{auth});
+    if(isSummaryRoute(request))return handleSummaryRoute(request,env,ctx,{auth});
     if(isMigrationRoute(request))return handleMigrationRoute(request,env,ctx,{auth});
     if(isReplicaRoute(request))return handleReplicaRoute(request,env,ctx,{auth});
     if(isAttachmentRoute(request))return withGeneration(await handleAttachmentRoute(request,env,ctx,{auth}),generation);
