@@ -23,7 +23,7 @@ export function createCloudRepository({api,cache,outbox=null}={}){
   async function query(resource,{allowCachedOnError=false,meta=null,limit=null,offset=0,q='',filters={},from='',to=''}={}){
     const name=ensureResource(resource);
     try{
-      const page=await api.listPage(name,{limit:limit??defaultLimit(name),offset,q,filters,from,to}),items=page.items??[];
+      const page=typeof api.listPage==='function'?await api.listPage(name,{limit:limit??defaultLimit(name),offset,q,filters,from,to}):{items:await api.list(name),pagination:{limit:limit??defaultLimit(name),offset:0,nextOffset:null,hasMore:false,q,filters,from,to}},items=page.items??[];
       await cache.replaceResource(name,items,meta??{hydratedAt:new Date().toISOString(),pagination:page.pagination});
       markSuccess();return items;
     }catch(error){
@@ -56,14 +56,14 @@ export function createCloudRepository({api,cache,outbox=null}={}){
   async function page(resource,{limit=null,offset=0,q='',filters={},from='',to=''}={}){
     const name=ensureResource(resource);
     try{
-      const response=await api.listPage(name,{limit:limit??defaultLimit(name),offset,q,filters,from,to}),stamp=new Date().toISOString();
+      const response=typeof api.listPage==='function'?await api.listPage(name,{limit:limit??defaultLimit(name),offset,q,filters,from,to}):{items:await api.list(name),pagination:{limit:limit??defaultLimit(name),offset:0,nextOffset:null,hasMore:false,q,filters,from,to}},stamp=new Date().toISOString();
       await cache.replaceResource(name,response.items??[],{hydratedAt:stamp,pagination:response.pagination});
       markSuccess();return response;
     }catch(error){await markError(error);throw error;}
   }
   async function refresh(resources=[]){
     const names=[...new Set((resources??[]).map(ensureResource))];if(!names.length)return{};
-    const settled=await Promise.all(names.map(async name=>{try{const response=await api.listPage(name,{limit:defaultLimit(name),offset:0});return{name,items:response.items??[],pagination:response.pagination,error:null};}catch(error){return{name,items:null,pagination:null,error};}})),stamp=new Date().toISOString(),writes=settled.filter(item=>!item.error).map(item=>({resource:item.name,items:item.items,meta:{hydratedAt:stamp,pagination:item.pagination}}));
+    const settled=await Promise.all(names.map(async name=>{try{const response=typeof api.listPage==='function'?await api.listPage(name,{limit:defaultLimit(name),offset:0}):{items:await api.list(name),pagination:{limit:defaultLimit(name),offset:0,nextOffset:null,hasMore:false}};return{name,items:response.items??[],pagination:response.pagination,error:null};}catch(error){return{name,items:null,pagination:null,error};}})),stamp=new Date().toISOString(),writes=settled.filter(item=>!item.error).map(item=>({resource:item.name,items:item.items,meta:{hydratedAt:stamp,pagination:item.pagination}}));
     if(writes.length)await cache.replaceResources(writes);
     const result={};let lastError=null;
     for(const item of settled){if(item.error){lastError=item.error;await markError(item.error);result[item.name]=await cache.getResource(item.name);}else result[item.name]=item.items;}
