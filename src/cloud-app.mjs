@@ -118,6 +118,7 @@ async function revalidateCloudView(app,repository,runtime,session,view,{forceFul
 
 async function renderCloudHome(app,repository,runtime,session,view=uiState.view,{revalidate=true}={}){
   const renderSequence=++viewRefreshSequence,user=session?.user;if(!user)return renderLogin(app,repository,runtime);const allowed=navigationFor(user),safeView=allowed.some(item=>item.id===view)?view:'overview';uiState.view=safeView;
+  await repository.outbox.normalizeInvalidConflicts?.();
   const state=await loadCloudState(repository,user,safeView),snapshot=buildCloudSnapshot(state.data),[queue,conflicts,failed,currentDeviceId]=await Promise.all([repository.outbox.summary(),repository.outbox.list({statuses:['conflict']}),repository.outbox.list({statuses:['failed']}),deviceId(repository)]),pending=queue.pending+queue.sending,status=statusText(queue,state.online,session),module=viewModule(safeView),shell=ensureCloudShell(app,user);
   const nav=shell.querySelector('.sidebar nav');nav.innerHTML=navHtml(user,safeView);
   const syncState=shell.querySelector('#cloud-sync-state'),syncDetail=shell.querySelector('#cloud-sync-detail'),syncButton=shell.querySelector('#cloud-sync');syncState.textContent=status;syncState.dataset.state=queue.conflict+queue.failed?'attention':!state.online?'offline':pending?'pending':'synced';
