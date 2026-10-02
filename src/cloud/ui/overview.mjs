@@ -2,7 +2,7 @@ import { buildDashboard } from '../../domain/reports.mjs';
 import { emptyStateHtml,esc,money } from './common.mjs';
 
 export function overviewHtml(snapshot){
-  const dashboard=buildDashboard(snapshot);
+  const dashboard=snapshot.overviewSummary??buildDashboard(snapshot);
   const performance=dashboard.vehiclePerformance.map(item=>`<article class="card cloud-performance"><div><strong>${esc(item.model)}</strong><small>${esc(item.plate)}</small></div><div class="kpi-lines"><p><span>Locações</span><b>${item.rentalCount}</b></p><p><span>Receita</span><b>${money(item.revenue)}</b></p><p><span>Custos</span><b>${money(item.expenses)}</b></p><p><span>Margem</span><b>${money(item.margin)}</b></p></div></article>`).join('');
   return `<div class="heading"><div><small>VISÃO GERAL</small><h1>Dashboard</h1></div></div>
   <div class="cards cloud-cards six" data-test="pwa-dashboard-kpis">
