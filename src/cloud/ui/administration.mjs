@@ -34,6 +34,11 @@ export function administrationHtml(_snapshot,user){
         <h3>Importações/migrações registradas</h3>
         <div class="table-wrap"><table><thead><tr><th>Data</th><th>Responsável</th><th>Linhas importadas</th><th>Backup anterior</th></tr></thead><tbody data-admin-migrations-body><tr><td colspan="4">Carregando…</td></tr></tbody></table></div>
         <p class="hint" data-admin-r2-detail></p>
+        <div class="panel admin-cleanup-card">
+          <h3>Dados de teste identificados</h3>
+          <p>Exclui somente registros que correspondem às assinaturas sintéticas conhecidas e aos dados associados à conta demo legada. Um backup é criado antes da exclusão.</p>
+          <button type="button" id="admin-cleanup-known-fixtures" class="secondary">Excluir dados de teste identificados</button>
+        </div>
       </section>
       <section class="panel" data-admin-pane="audit" data-test="admin-audit" hidden><div class="panel-title"><div><small>HISTÓRICO</small><h2>Auditoria</h2><span>Consulte ações realizadas no sistema.</span></div></div><form id="admin-audit-filter" class="form-grid"><label>Ação<input name="action" placeholder="Ex.: configurações"></label><label>Entidade<input name="entityType" placeholder="Ex.: cliente"></label><label>De<input name="from" inputmode="numeric" placeholder="dd/mm/aaaa"></label><label>Até<input name="to" inputmode="numeric" placeholder="dd/mm/aaaa"></label><div class="full"><button class="secondary">Filtrar</button> <button type="button" id="admin-audit-clear">Limpar</button></div></form><div class="table-wrap"><table><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Entidade</th><th>ID</th><th>Detalhes</th></tr></thead><tbody data-admin-audit-body><tr><td colspan="6">Carregando…</td></tr></tbody></table></div><div class="actions admin-pagination"><button type="button" id="admin-audit-prev">Anterior</button><span data-admin-audit-page></span><button type="button" id="admin-audit-next">Próxima</button></div></section>
     </div>
@@ -68,6 +73,7 @@ export function bindAdministration(root,{actions,user}){
   root.querySelector('#admin-audit-prev').onclick=()=>{auditFilters.offset=Math.max(0,(auditPage.offset||0)-(auditPage.limit||25));void loadAudit().catch(error=>message(code(error),{error:true}));};
   root.querySelector('#admin-audit-next').onclick=()=>{if(auditPage.nextOffset==null)return;auditFilters.offset=auditPage.nextOffset;void loadAudit().catch(error=>message(code(error),{error:true}));};
   root.querySelector('#admin-inventory-reload').onclick=()=>void loadInventory().catch(error=>message(code(error),{error:true}));
+  root.querySelector('#admin-cleanup-known-fixtures').onclick=async event=>{if(!confirm('Excluir agora os dados de teste identificados? Um backup será criado antes da exclusão e registros reais fora dos critérios conhecidos serão preservados.'))return;const button=event.currentTarget;setBusy(button,true);try{message('Criando backup e excluindo dados de teste identificados…');const result=await actions.cleanupKnownFixtures();if(result?.alreadyRan)message('A limpeza já havia sido concluída anteriormente.');else message(`Limpeza concluída. ${Number(result?.deletedRows||0)} registro(s) removido(s) e ${Number(result?.r2Deleted||0)} objeto(s) R2 excluído(s).`);await Promise.all([loadInventory(),loadAudit(),loadBackups()]);}catch(error){message(code(error),{error:true});}finally{setBusy(button,false);}};
   root.querySelector('#admin-reload').onclick=()=>void loadAll();
   void loadAll();
 }
