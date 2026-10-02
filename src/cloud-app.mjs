@@ -178,6 +178,27 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
     async loadFinanceReceivables(options={}){uiState.financeReceivables={...uiState.financeReceivables,...options,offset:Number(options.offset??uiState.financeReceivables.offset)||0};return renderCloudHome(app,repository,runtime,session,'finance',{revalidate:false});},
     async getResource(resource,id){return repository.api.get(resource,id);},
     async fetchResourcePage(resource,options={}){return repository.api.listPage(resource,options);},
+    async paymentContext(rentalId){
+      const rental=await repository.api.get('rentals',rentalId);if(!rental)return snapshot;
+      const [installments,rentalPayments,customer,vehicle]=await Promise.all([
+        repository.api.listPage('billingInstallments',{limit:100,offset:0,filters:{rentalId}}).then(result=>result.items??[]),
+        repository.api.listPage('rentalPayments',{limit:100,offset:0,filters:{rentalId}}).then(result=>result.items??[]),
+        rental.customerId?repository.api.get('customers',rental.customerId):null,
+        rental.vehicleId?repository.api.get('vehicles',rental.vehicleId):null
+      ]);
+      return buildCloudSnapshot({rentals:[rental],billingInstallments:installments,rentalPayments,customers:customer?[customer]:[],vehicles:vehicle?[vehicle]:[]});
+    },
+    async ledgerPaymentContext(ledgerId){
+      const ledger=await repository.api.get('ledger',ledgerId);if(!ledger)return snapshot;
+      const rental=ledger.rentalId?await repository.api.get('rentals',ledger.rentalId):null,installment=ledger.installmentId?await repository.api.get('billingInstallments',ledger.installmentId):null;
+      const [rentalPayments,installments,customer,vehicle]=rental?await Promise.all([
+        repository.api.listPage('rentalPayments',{limit:100,offset:0,filters:{rentalId:rental.id}}).then(result=>result.items??[]),
+        repository.api.listPage('billingInstallments',{limit:100,offset:0,filters:{rentalId:rental.id}}).then(result=>result.items??[]),
+        rental.customerId?repository.api.get('customers',rental.customerId):null,
+        rental.vehicleId?repository.api.get('vehicles',rental.vehicleId):null
+      ]):[[],installment?[installment]:[],null,null];
+      return buildCloudSnapshot({ledger:[ledger],rentals:rental?[rental]:[],rentalPayments,billingInstallments:installments,customers:customer?[customer]:[],vehicles:vehicle?[vehicle]:[]});
+    },
     async paymentContext(rentalId){const rental=await repository.api.get('rentals',rentalId);if(!rental)throw Object.assign(new Error('rental_not_found'),{code:'rental_not_found'});const [installmentsPage,paymentsPage,customer,vehicle]=await Promise.all([repository.api.listPage('billingInstallments',{limit:200,filters:{rentalId}}),repository.api.listPage('rentalPayments',{limit:200,filters:{rentalId}}),rental.customerId?repository.api.get('customers',rental.customerId):null,rental.vehicleId?repository.api.get('vehicles',rental.vehicleId):null]);return buildCloudSnapshot({rentals:[rental],billingInstallments:installmentsPage.items,rentalPayments:paymentsPage.items,customers:customer?[customer]:[],vehicles:vehicle?[vehicle]:[]});},
     async ledgerPaymentContext(ledgerId){const ledger=await repository.api.get('ledger',ledgerId);if(!ledger)throw Object.assign(new Error('ledger_not_found'),{code:'ledger_not_found'});if(ledger.rentalId){const context=await this.paymentContext(ledger.rentalId);context.ledger=[ledger];return context;}return buildCloudSnapshot({ledger:[ledger]});},
     async getAdminAudit(filters){return repository.api.getAdminAudit(filters);},async getAdminSettings(){return repository.api.getAdminSettings();},async getAdminDataInventory(){return repository.api.getAdminDataInventory();},async updateAdminSettings(data,expectedVersion){return repository.api.updateAdminSettings(data,{expectedVersion});},async listCloudBackups(){return repository.api.listCloudBackups();},async createCloudBackup(){return repository.api.createCloudBackup();},
