@@ -102,6 +102,13 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
   viewNode.innerHTML=firstHydration?'<div class="panel" data-test="cloud-view-loading"><strong>Carregando dados desta área…</strong><p class="hint">A navegação permanece disponível enquanto os dados são atualizados.</p></div>':module?.html(snapshot,user)??'<div class="panel">Tela indisponível.</div>';
   flash='';
   const rerender=target=>renderCloudHome(app,repository,runtime,session,target??safeView);
+  if(firstHydration){
+    for(const button of nav.querySelectorAll('[data-cloud-nav]'))button.onclick=()=>void rerender(button.dataset.cloudNav);
+    shell.querySelector('#cloud-logout').onclick=async()=>{viewRefreshSequence++;try{await repository.api.logout();}catch{}await repository.clearSession();renderLogin(app,repository,runtime);};
+    try{await repository.refresh(state.missing);}catch(error){if(error?.status===401){await repository.clearSession();renderLogin(app,repository,runtime);return;}}
+    if(renderSequence===viewRefreshSequence&&uiState.view===safeView)return renderCloudHome(app,repository,runtime,session,safeView,{revalidate:false});
+    return;
+  }
   const actions={
     currentDeviceId,
     async queue(kind,payload,prefix='OP'){try{const result=await queueOperation(repository,runtime,{kind,payload,operationId:operationId(prefix)});flash=successFor(kind,navigator.onLine&&result?.status==='synced');return result;}catch(error){flash=message(error);throw error;}},
@@ -121,7 +128,7 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
   shell.querySelector('#cloud-sync').onclick=async()=>{try{await flushPending(repository,runtime);flash='Sincronização concluída.';}catch(error){flash=message(error);}await rerender(safeView);};
   shell.querySelector('#cloud-logout').onclick=async()=>{viewRefreshSequence++;try{await repository.api.logout();}catch{}await repository.clearSession();renderLogin(app,repository,runtime);};
   if(!firstHydration){try{module?.bind?.(viewNode,{snapshot,user,actions,state:uiState});}catch(error){flash=message(error);}}
-  if(revalidate&&navigator.onLine)void revalidateCloudView(app,repository,runtime,session,safeView,{renderAfter:firstHydration,sequence:renderSequence});
+  if(revalidate&&navigator.onLine)void revalidateCloudView(app,repository,runtime,session,safeView,{renderAfter:false,sequence:renderSequence});
 }
 
 export async function bootstrapCloudApp({app=document.querySelector('#app'),baseUrl=location.origin}={}){
