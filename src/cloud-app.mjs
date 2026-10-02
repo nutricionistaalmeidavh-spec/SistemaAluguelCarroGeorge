@@ -72,7 +72,7 @@ function ensureCloudShell(app,user){
   app.innerHTML=`<div class="app-shell cloud-shell"><aside class="sidebar"><div class="brand"><span class="brandmark">LV</span><div><small>ARTISYS</small><strong>Locadora George</strong></div></div><nav></nav><div class="sidebar-foot"><small>${esc(user.name||user.username||'Usuário')}</small><button id="cloud-logout" type="button">Sair</button></div></aside><main class="workspace"><header class="topbar"><div><strong id="cloud-sync-state" data-test="cloud-status">Preparando…</strong><small id="cloud-sync-detail"></small></div><div class="actions"><button id="cloud-refresh" type="button">Atualizar</button><button id="cloud-sync" type="button">Sincronizar</button></div></header><div id="cloud-flash-slot"></div><div id="cloud-error-slot"></div><div id="cloud-conflict-slot"></div><section id="cloud-view"></section></main></div>`;
   return app.querySelector('.cloud-shell');
 }
-async function revalidateCloudView(app,repository,runtime,session,view,{forceFull=false,sequence=++viewRefreshSequence}={}){
+async function revalidateCloudView(app,repository,runtime,session,view,{forceFull=false,renderAfter=false,sequence=++viewRefreshSequence}={}){
   const user=session?.user;if(!user||!navigator.onLine)return;
   const resources=resourcesForView(view,user);let changed=Boolean(forceFull);
   try{
@@ -84,7 +84,7 @@ async function revalidateCloudView(app,repository,runtime,session,view,{forceFul
     if(error?.status===401){await repository.clearSession();renderLogin(app,repository,runtime);return;}
     changed=true;
   }
-  if(!changed||sequence!==viewRefreshSequence||uiState.view!==view)return;
+  if(!renderAfter||!changed||sequence!==viewRefreshSequence||uiState.view!==view)return;
   await renderCloudHome(app,repository,runtime,session,view,{revalidate:false});
 }
 
@@ -117,11 +117,11 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
   };
   for(const button of nav.querySelectorAll('[data-cloud-nav]'))button.onclick=()=>void rerender(button.dataset.cloudNav);
   for(const button of conflictSlot.querySelectorAll('[data-cloud-accept]'))button.onclick=async()=>{try{await repository.outbox.resolveConflict(button.dataset.cloudAccept,{strategy:'accept-cloud'});if(repository.cloudSync&&navigator.onLine)await repository.cloudSync.pullChanges();flash='Versão da nuvem aplicada.';}catch(error){flash=message(error);}await rerender(safeView);};
-  shell.querySelector('#cloud-refresh').onclick=()=>void revalidateCloudView(app,repository,runtime,session,safeView,{forceFull:true,sequence:renderSequence});
+  shell.querySelector('#cloud-refresh').onclick=()=>void revalidateCloudView(app,repository,runtime,session,safeView,{forceFull:true,renderAfter:true,sequence:renderSequence});
   shell.querySelector('#cloud-sync').onclick=async()=>{try{await flushPending(repository,runtime);flash='Sincronização concluída.';}catch(error){flash=message(error);}await rerender(safeView);};
   shell.querySelector('#cloud-logout').onclick=async()=>{viewRefreshSequence++;try{await repository.api.logout();}catch{}await repository.clearSession();renderLogin(app,repository,runtime);};
   if(!firstHydration){try{module?.bind?.(viewNode,{snapshot,user,actions,state:uiState});}catch(error){flash=message(error);}}
-  if(revalidate&&navigator.onLine)void revalidateCloudView(app,repository,runtime,session,safeView,{sequence:renderSequence});
+  if(revalidate&&navigator.onLine)void revalidateCloudView(app,repository,runtime,session,safeView,{renderAfter:firstHydration,sequence:renderSequence});
 }
 
 export async function bootstrapCloudApp({app=document.querySelector('#app'),baseUrl=location.origin}={}){
