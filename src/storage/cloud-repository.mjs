@@ -16,7 +16,7 @@ export function createCloudRepository({api,cache,outbox=null}={}){
   async function query(resource,{allowCachedOnError=false,meta=null}={}){
     const name=ensureResource(resource);
     try{
-      const items=await api.list(name);await cache.replaceResource(name,items,meta);markSuccess();return items;
+      const items=await api.list(name);await cache.replaceResource(name,items,meta??{hydratedAt:new Date().toISOString()});markSuccess();return items;
     }catch(error){
       await markError(error);
       if(allowCachedOnError&&error?.status!==401)return cache.getResource(name);
@@ -39,15 +39,24 @@ export function createCloudRepository({api,cache,outbox=null}={}){
   }
 
   async function loadViewState(resources=[]){
-    const result={};for(const resource of resources)result[resource]=await cache.getResource(resource);return result;
+    const names=[...new Set((resources??[]).map(ensureResource))],pairs=await Promise.all(names.map(async name=>[name,await cache.getResource(name)]));return Object.fromEntries(pairs);
+  }
+  async function missingResources(resources=[]){
+    const names=[...new Set((resources??[]).map(ensureResource))],pairs=await Promise.all(names.map(async name=>[name,await cache.getResourceMeta(name)]));return pairs.filter(([,meta])=>!meta?.hydratedAt).map(([name])=>name);
   }
   async function refresh(resources=[]){
-    const result={};for(const resource of resources)result[resource]=await query(resource,{allowCachedOnError:true});return result;
+    const names=[...new Set((resources??[]).map(ensureResource))];if(!names.length)return{};
+    const settled=await Promise.all(names.map(async name=>{try{return{name,items:await api.list(name),error:null};}catch(error){return{name,items:null,error};}})),stamp=new Date().toISOString(),writes=settled.filter(item=>!item.error).map(item=>({resource:item.name,items:item.items,meta:{hydratedAt:stamp}}));
+    if(writes.length)await cache.replaceResources(writes);
+    const result={};let lastError=null;
+    for(const item of settled){if(item.error){lastError=item.error;await markError(item.error);result[item.name]=await cache.getResource(item.name);}else result[item.name]=item.items;}
+    if(!lastError)markSuccess();
+    return result;
   }
   async function flush(){if(outbox?.flush)return outbox.flush();return true;}
   async function setSession(session){state.requiresLogin=false;return cache.setSession(session);}
   async function session(){return cache.getSession();}
   async function clearSession(){state.requiresLogin=true;return cache.clearSession();}
 
-  return Object.freeze({kind:'cloud',query,mutate,loadViewState,refresh,flush,status:snapshotStatus,setSession,session,clearSession,cache,outbox});
+  return Object.freeze({kind:'cloud',query,mutate,loadViewState,missingResources,refresh,flush,status:snapshotStatus,setSession,session,clearSession,cache,outbox});
 }
