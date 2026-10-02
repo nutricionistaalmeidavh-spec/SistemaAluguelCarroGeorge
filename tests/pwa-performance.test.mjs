@@ -76,5 +76,5 @@ test('bootstrap de autenticação não bloqueia o import principal do PWA',async
 
 test('service worker invalida a geração anterior do cache estático',async()=>{
   const source=await readFile(new URL('../sw.js',import.meta.url),'utf8');
-  assert.match(source,/0\.7\.0-cloud-mobile-5/);
+  assert.match(source,/0\.7\.0-cloud-mobile-6/);
 });
