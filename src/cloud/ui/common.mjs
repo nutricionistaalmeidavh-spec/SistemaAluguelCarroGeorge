@@ -80,7 +80,7 @@ export function buildCloudSnapshot(data={}){
 }
 
 export function pageControls(resource,pagination={},options={}){
-  const limit=Number(pagination?.limit)||Number(options.limit)||50,offset=Math.max(0,Number(pagination?.offset)||0),hasMore=Boolean(pagination?.hasMore),page=Math.floor(offset/Math.max(1,limit))+1,q=String(pagination?.q??options.q??''),searchMarker=resource==='customers'?' data-customer-search':resource==='vehicles'?' data-vehicle-search':'';
+  const limit=Number(pagination?.limit)||Number(options.limit)||50,offset=Math.max(0,Number(pagination?.offset)||0),hasMore=Boolean(pagination?.hasMore),page=Math.floor(offset/Math.max(1,limit))+1,q=String(pagination?.q??options.q??''),searchMarker=options.searchAttribute?` ${esc(options.searchAttribute)}`:resource==='customers'?' data-customer-search':resource==='vehicles'?' data-vehicle-search':'';
   const search=options.search?`<form class="server-search" data-page-search="${esc(resource)}"><input name="q" type="search"${searchMarker} value="${esc(q)}" placeholder="${esc(options.placeholder||'Buscar')}"><button type="submit" class="secondary">Buscar</button></form>`:'';
   return `<div class="server-pagebar">${search}<div class="server-pager"><button type="button" class="secondary" data-page-resource="${esc(resource)}" data-page-offset="${Math.max(0,offset-limit)}" ${offset<=0?'disabled':''}>Anterior</button><span>Página ${page}</span><button type="button" class="secondary" data-page-resource="${esc(resource)}" data-page-offset="${offset+limit}" ${hasMore?'':'disabled'}>Próxima</button></div></div>`;
 }
