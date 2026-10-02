@@ -52,4 +52,6 @@ test('P1: Administração é dividida em Empresa, Segurança, Backup e Auditoria
   for(const name of ['company','security','backup','audit'])assert.match(admin,new RegExp(`data-admin-tab="${name}"`));
   assert.match(admin,/Segurança avançada/);
   assert.match(admin,/\.\/security\.html/);
+  assert.match(admin,/admin-cleanup-known-fixtures/);
+  assert.match(admin,/Excluir dados de teste identificados/);
 });
