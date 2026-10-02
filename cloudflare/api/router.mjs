@@ -39,7 +39,11 @@ export async function routeApi(request,env,_ctx,{auth=null}={}){
   if(!permission||!canCloud(session,permission))return json({ok:false,error:'forbidden'},403);
   const repo=createD1Repository(env.DB,session.installationId);
   try{
-    if(method==='GET'&&!entityId){const items=await repo.list(resource);return json({ok:true,items:items.map(clean)});}
+    if(method==='GET'&&!entityId){
+      const limit=Math.min(500,Math.max(1,Number(url.searchParams.get('limit'))||250)),offset=Math.max(0,Number(url.searchParams.get('offset'))||0);
+      const page=await repo.list(resource,{limit,offset});
+      return json({ok:true,items:page.items.map(clean),pagination:{limit:page.limit,offset:page.offset,nextOffset:page.nextOffset,hasMore:page.hasMore}});
+    }
     if(method==='GET'&&entityId){const item=await repo.get(resource,entityId);return item?json({ok:true,item:clean(item)}):json({ok:false,error:'not_found'},404);}
     if(method==='POST'&&!entityId){
       const input=await readJson(request),id=validId(input.id)?String(input.id):generatedId(resource);
