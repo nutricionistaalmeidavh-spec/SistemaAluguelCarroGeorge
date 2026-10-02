@@ -1,6 +1,7 @@
 import { API_PREFIX } from '../config.mjs';
 import { canCloud } from '../auth/permissions.mjs';
 import { appendChangeStatement } from '../sync/change-log.mjs';
+import { cleanupKnownFixtureData } from '../maintenance/known-fixture-cleanup.mjs';
 
 const PREFIX=`${API_PREFIX}/admin`;
 const HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
@@ -64,6 +65,13 @@ async function dataInventory(env,auth){
   const r2=await r2Inventory(env.ATTACHMENTS,auth.installationId);
   return{ok:true,installationId:auth.installationId,tables,migrations:(migrationRows?.results??[]).map(row=>({...row,details:parseJson(row.detailsJson,{}),detailsJson:undefined})),actors:actorRows?.results??[],markers:{customers:Number(markerRows?.customers)||0,vehicles:Number(markerRows?.vehicles)||0,rentals:Number(markerRows?.rentals)||0},demoAudit:{total:Number(demoAudit?.total)||0,firstAt:demoAudit?.firstAt??null,lastAt:demoAudit?.lastAt??null},r2};
 }
+async function cleanupFixtures(request,env,auth){
+  if(auth.installationId!=='LOCADORA-GEORGE')return json({ok:false,error:'cleanup_wrong_tenant'},409);
+  const input=await readJson(request);
+  if(String(input.confirmation??'')!=='EXCLUIR DADOS DE TESTE')return json({ok:false,error:'cleanup_confirmation_required'},400);
+  const result=await cleanupKnownFixtureData(env,{actorId:auth.userId});
+  return json(result,200);
+}
 async function updateSettings(request,db,auth){
   const input=await readJson(request),expectedVersion=Number(input.expectedVersion);if(!Number.isInteger(expectedVersion)||expectedVersion<0)return json({ok:false,error:'expected_version_required'},400);
   const current=await getSettings(db,auth.installationId);if(current.version!==expectedVersion)return json({ok:false,error:'version_conflict',current},409);
@@ -83,5 +91,5 @@ export function isAdminRoute(request){const p=new URL(request.url).pathname;retu
 export async function handleAdminRoute(request,env,_ctx,{auth=null}={}){
   if(!auth?.installationId||!auth?.userId)return json({ok:false,error:'unauthorized'},401);if(!adminAuth(auth))return json({ok:false,error:'forbidden'},403);if(!env?.DB?.prepare)return json({ok:false,error:'database_unavailable'},503);
   const p=new URL(request.url).pathname,m=request.method.toUpperCase();
-  try{if(p===`${PREFIX}/audit`&&m==='GET')return listAudit(request,env.DB,auth);if(p===`${PREFIX}/data-inventory`&&m==='GET')return json(await dataInventory(env,auth));if(p===`${PREFIX}/settings`&&m==='GET'){const current=await getSettings(env.DB,auth.installationId);return json({ok:true,...current});}if(p===`${PREFIX}/settings`&&m==='PATCH')return updateSettings(request,env.DB,auth);if(p===`${PREFIX}/audit`||p===`${PREFIX}/data-inventory`)return json({ok:false,error:'method_not_allowed'},405,{allow:'GET'});if(p===`${PREFIX}/settings`)return json({ok:false,error:'method_not_allowed'},405,{allow:'GET, PATCH'});return json({ok:false,error:'not_found'},404);}catch(error){if(error?.status)return json({ok:false,error:error.message},error.status);console.error('admin route error',error);return json({ok:false,error:error?.message||'internal_error'},500);}
+  try{if(p===`${PREFIX}/audit`&&m==='GET')return listAudit(request,env.DB,auth);if(p===`${PREFIX}/data-inventory`&&m==='GET')return json(await dataInventory(env,auth));if(p===`${PREFIX}/cleanup-known-fixtures`&&m==='POST')return cleanupFixtures(request,env,auth);if(p===`${PREFIX}/settings`&&m==='GET'){const current=await getSettings(env.DB,auth.installationId);return json({ok:true,...current});}if(p===`${PREFIX}/settings`&&m==='PATCH')return updateSettings(request,env.DB,auth);if(p===`${PREFIX}/audit`||p===`${PREFIX}/data-inventory`)return json({ok:false,error:'method_not_allowed'},405,{allow:'GET'});if(p===`${PREFIX}/cleanup-known-fixtures`)return json({ok:false,error:'method_not_allowed'},405,{allow:'POST'});if(p===`${PREFIX}/settings`)return json({ok:false,error:'method_not_allowed'},405,{allow:'GET, PATCH'});return json({ok:false,error:'not_found'},404);}catch(error){if(error?.status)return json({ok:false,error:error.message},error.status);console.error('admin route error',error);return json({ok:false,error:error?.message||'internal_error'},500);}
 }
