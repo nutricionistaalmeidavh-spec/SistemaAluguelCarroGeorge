@@ -26,12 +26,12 @@ const RESOURCE_PERMISSIONS=Object.freeze({
   contractTemplates:'contracts.read',issuedContracts:'contracts.read',attachments:'documents.read',alertState:'alerts.read'
 });
 export const VIEW_RESOURCES=Object.freeze({
-  overview:Object.freeze(['customers','vehicles','rentals','maintenance','ledger','alertState']),
+  overview:Object.freeze([]),
   customers:Object.freeze(['customers']),
   vehicles:Object.freeze(['vehicles']),
-  rentals:Object.freeze(['customers','vehicles','rentals','rentalPayments','billingInstallments','billingPayments','ledger']),
+  rentals:Object.freeze(['customers','vehicles','rentals','rentalPayments','billingInstallments']),
   inspections:Object.freeze(['customers','vehicles','rentals','inspections','inspectionItems','attachments']),
-  finance:Object.freeze(['customers','vehicles','rentals','rentalPayments','expenses','ledger','maintenance','billingPlans','billingInstallments','billingPayments']),
+  finance:Object.freeze(['vehicles','expenses']),
   billing:Object.freeze(['customers','vehicles','rentals','billingPlans','billingInstallments','billingPayments']),
   delinquency:Object.freeze(['customers','billingInstallments','collectionActions']),
   contracts:Object.freeze(['customers','vehicles','rentals','contractTemplates','issuedContracts','appSettings']),
@@ -81,15 +81,23 @@ async function loadCloudState(repository,user,view){
     repository.missingResources(resources),
     Promise.all(resources.map(async resource=>[resource,await repository.cache.getResourceMeta(resource)]))
   ]),repositoryState=repository.status(),pagination=Object.fromEntries(metas.map(([resource,meta])=>[resource,meta?.pagination??{}]));
+  if(view==='overview')data.overviewSummary=await repository.cache.getResource('overviewSummary');
+  if(view==='finance'){data.financeSummary=await repository.cache.getResource('financeSummary');data.financeReceivables=await repository.cache.getResource('financeReceivables');pagination.financeReceivables=(await repository.cache.getResourceMeta('financeReceivables'))?.pagination??{};}
   if(navigator.onLine){
     try{
-      if(view==='overview')data.overviewSummary=[await repository.api.getOverviewSummary()];
+      if(view==='overview'){
+        const summary=await repository.api.getOverviewSummary();data.overviewSummary=[summary];await repository.cache.replaceResource('overviewSummary',[summary],{hydratedAt:new Date().toISOString()});
+      }
       if(view==='finance'){
         const [summary,receivables]=await Promise.all([
           repository.api.getFinanceSummary(),
           repository.api.getFinanceReceivables(uiState.financeReceivables)
         ]);
         data.financeSummary=[summary];data.financeReceivables=receivables.items;pagination.financeReceivables=receivables.pagination;
+        await repository.cache.replaceResources([
+          {resource:'financeSummary',items:[summary],meta:{hydratedAt:new Date().toISOString()}},
+          {resource:'financeReceivables',items:receivables.items,meta:{hydratedAt:new Date().toISOString(),pagination:receivables.pagination}}
+        ]);
       }
     }catch{}
   }
@@ -168,6 +176,8 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
     async flush(){return flushPending(repository,runtime);},async refresh(target=safeView){return renderCloudHome(app,repository,runtime,session,target,{revalidate:false});},
     async loadResourcePage(resource,options={}){const current=state.pagination?.[resource]??{},next={limit:Number(options.limit??current.limit)||undefined,offset:Number(options.offset??current.offset)||0,q:options.q??current.q??'',filters:options.filters??current.filters??{},from:options.from??current.from??'',to:options.to??current.to??''};await repository.page(resource,next);return renderCloudHome(app,repository,runtime,session,safeView,{revalidate:false});},
     async loadFinanceReceivables(options={}){uiState.financeReceivables={...uiState.financeReceivables,...options,offset:Number(options.offset??uiState.financeReceivables.offset)||0};return renderCloudHome(app,repository,runtime,session,'finance',{revalidate:false});},
+    async getResource(resource,id){return repository.api.get(resource,id);},
+    async fetchResourcePage(resource,options={}){return repository.api.listPage(resource,options);},
     async paymentContext(rentalId){const rental=await repository.api.get('rentals',rentalId);if(!rental)throw Object.assign(new Error('rental_not_found'),{code:'rental_not_found'});const [installmentsPage,paymentsPage,customer,vehicle]=await Promise.all([repository.api.listPage('billingInstallments',{limit:200,filters:{rentalId}}),repository.api.listPage('rentalPayments',{limit:200,filters:{rentalId}}),rental.customerId?repository.api.get('customers',rental.customerId):null,rental.vehicleId?repository.api.get('vehicles',rental.vehicleId):null]);return buildCloudSnapshot({rentals:[rental],billingInstallments:installmentsPage.items,rentalPayments:paymentsPage.items,customers:customer?[customer]:[],vehicles:vehicle?[vehicle]:[]});},
     async ledgerPaymentContext(ledgerId){const ledger=await repository.api.get('ledger',ledgerId);if(!ledger)throw Object.assign(new Error('ledger_not_found'),{code:'ledger_not_found'});if(ledger.rentalId){const context=await this.paymentContext(ledger.rentalId);context.ledger=[ledger];return context;}return buildCloudSnapshot({ledger:[ledger]});},
     async getAdminAudit(filters){return repository.api.getAdminAudit(filters);},async getAdminSettings(){return repository.api.getAdminSettings();},async getAdminDataInventory(){return repository.api.getAdminDataInventory();},async updateAdminSettings(data,expectedVersion){return repository.api.updateAdminSettings(data,{expectedVersion});},async listCloudBackups(){return repository.api.listCloudBackups();},async createCloudBackup(){return repository.api.createCloudBackup();},
