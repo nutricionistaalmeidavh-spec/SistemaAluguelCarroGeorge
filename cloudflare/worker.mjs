@@ -18,12 +18,17 @@ import { throttleIdentity,checkLoginThrottle,recordLoginFailure,clearLoginThrott
 import { checkSyncGeneration,decorateSyncResponse } from './sync/generation.mjs';
 import { allowedOrigins,secureResponse,validateRequestOrigin } from './security/hardening.mjs';
 import { writeCloudBackup } from './backup/r2-backup.mjs';
+import { cleanupKnownFixtureData } from './maintenance/known-fixture-cleanup.mjs';
 import { routeApi } from './api/router.mjs';
 
 const JSON_HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
 function json(body,status=200,headers={}){return new Response(JSON.stringify(body),{status,headers:{...JSON_HEADERS,...headers}});}
 export function normalizeBindings(env={}){const DB=env.DB??env.Bd??env.bd??env.db;const ATTACHMENTS=env.ATTACHMENTS??env.r2??env.R2;if(DB===env.DB&&ATTACHMENTS===env.ATTACHMENTS)return env;return {...env,DB,ATTACHMENTS};}
 async function authFor(request,env){return await resolveSession(request,env)||await resolveDeviceCredential(request,env);}
+async function cleanupKnownFixturesIfNeeded(env,auth){
+  if(auth?.installationId!=='LOCADORA-GEORGE'||auth?.role!=='admin')return;
+  try{await cleanupKnownFixtureData(env,{actorId:auth.userId});}catch(error){console.error('known fixture cleanup failed',error?.message);}
+}
 function isMutation(method){return ['POST','PUT','PATCH','DELETE'].includes(String(method).toUpperCase());}
 function requiresGeneration(pathname,method){if(!isMutation(method)||!pathname.startsWith(`${API_PREFIX}/`))return false;if(pathname.startsWith(`${API_PREFIX}/auth/`))return false;if(pathname.startsWith(`${API_PREFIX}/devices`))return false;if(pathname.startsWith(`${API_PREFIX}/sessions`))return false;if(pathname.startsWith(`${API_PREFIX}/backups`))return false;if(pathname.startsWith(`${API_PREFIX}/admin`))return false;if(pathname.startsWith(`${API_PREFIX}/migration`))return false;return true;}
 async function generationFor(request,env,auth){const generation=await checkSyncGeneration(request,env.DB,auth);if(generation.ok)return generation;return {...generation,response:json({ok:false,error:generation.error,restoreGeneration:generation.serverGeneration,clientGeneration:generation.clientGeneration},409)};}
@@ -34,9 +39,9 @@ async function dispatch(request,env,ctx){
   if(url.pathname===`${API_PREFIX}/health`){if(!['GET','HEAD'].includes(request.method))return json({ok:false,error:'method_not_allowed'},405,{allow:'GET, HEAD'});const body=publicHealth();return request.method==='HEAD'?new Response(null,{status:200,headers:JSON_HEADERS}):json(body);}
   if(url.pathname.startsWith(`${API_PREFIX}/`)&&!validateRequestOrigin(request,{allowedOrigins:allowedOrigins(env)}))return json({ok:false,error:'origin_forbidden'},403);
   if(url.pathname===`${API_PREFIX}/auth/login`){const identity=await throttleIdentity(request);if(identity){const gate=await checkLoginThrottle(env.DB,identity.keyHash);if(gate.blocked)return json({ok:false,error:'login_throttled',retryAfterSeconds:gate.retryAfterSeconds},429,{'retry-after':String(gate.retryAfterSeconds)});}const response=await handleAuthRoute(request,env,ctx,{auth:null});if(identity){if(response.status===200)await clearLoginThrottle(env.DB,identity.keyHash);else if(response.status===401)await recordLoginFailure(env.DB,identity.keyHash);}return response;}
-  if(url.pathname.startsWith(`${API_PREFIX}/auth/`)){const auth=await authFor(request,env);return handleAuthRoute(request,env,ctx,{auth});}
+  if(url.pathname.startsWith(`${API_PREFIX}/auth/`)){const auth=await authFor(request,env);await cleanupKnownFixturesIfNeeded(env,auth);return handleAuthRoute(request,env,ctx,{auth});}
   if(url.pathname.startsWith(`${API_PREFIX}/`)){
-    const auth=await authFor(request,env);let generation=null;if(requiresGeneration(url.pathname,request.method)){generation=await generationFor(request,env,auth);if(generation.response)return generation.response;}
+    const auth=await authFor(request,env);await cleanupKnownFixturesIfNeeded(env,auth);let generation=null;if(requiresGeneration(url.pathname,request.method)){generation=await generationFor(request,env,auth);if(generation.response)return generation.response;}
     if(isDeviceManagementRoute(request))return handleDeviceManagementRoute(request,env,ctx,{auth});
     if(isBackupRoute(request))return handleBackupRoute(request,env,ctx,{auth});
     if(isAdminRoute(request))return handleAdminRoute(request,env,ctx,{auth});
