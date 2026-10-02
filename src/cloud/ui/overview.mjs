@@ -1,5 +1,5 @@
 import { buildDashboard } from '../../domain/reports.mjs';
-import { esc,money } from './common.mjs';
+import { emptyStateHtml,esc,money } from './common.mjs';
 
 export function overviewHtml(snapshot){
   const dashboard=buildDashboard(snapshot);
@@ -13,5 +13,5 @@ export function overviewHtml(snapshot){
     <article><small>Em aberto</small><strong>${money(dashboard.openAmount)}</strong></article>
     <article><small>Caixa líquido</small><strong>${money(dashboard.netCash)}</strong></article>
   </div>
-  <div class="cloud-grid"><section class="panel"><h2>Frota</h2><div class="kpi-lines"><p><span>Total</span><b>${dashboard.fleetTotal}</b></p><p><span>Disponíveis</span><b>${dashboard.availableVehicles}</b></p><p><span>Em manutenção</span><b>${dashboard.maintenanceVehicles}</b></p><p><span>Ticket médio</span><b>${money(dashboard.averageTicket)}</b></p></div></section><section class="panel"><h2>Rentabilidade por veículo</h2><div class="cloud-card-list">${performance||'<div class="empty">Sem dados financeiros por veículo.</div>'}</div></section></div>`;
+  <div class="cloud-grid"><section class="panel"><h2>Frota</h2><div class="kpi-lines"><p><span>Total</span><b>${dashboard.fleetTotal}</b></p><p><span>Disponíveis</span><b>${dashboard.availableVehicles}</b></p><p><span>Em manutenção</span><b>${dashboard.maintenanceVehicles}</b></p><p><span>Ticket médio</span><b>${money(dashboard.averageTicket)}</b></p></div></section><section class="panel"><h2>Rentabilidade por veículo</h2><div class="cloud-card-list">${performance||emptyStateHtml({title:'Ainda não há dados de rentabilidade',description:'A rentabilidade por veículo aparecerá depois das primeiras locações e despesas registradas.'})}</div></section></div>`;
 }
