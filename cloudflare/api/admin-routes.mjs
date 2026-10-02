@@ -6,6 +6,13 @@ const PREFIX=`${API_PREFIX}/admin`;
 const HEADERS={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
 const MAX_BODY_BYTES=32_000;
 const SETTINGS_LIMITS=Object.freeze({companyName:160,document:64,phone:64,address:500});
+const INVENTORY_TABLES=Object.freeze([
+  ['customers','created_at'],['vehicles','created_at'],['rentals','created_at'],['rental_payments','created_at'],
+  ['expenses','created_at'],['inspections','created_at'],['inspection_items','created_at'],['maintenance','created_at'],
+  ['ledger','created_at'],['contract_templates','created_at'],['issued_contracts','created_at'],['billing_plans','created_at'],
+  ['billing_installments','created_at'],['billing_payments','created_at'],['billing_payment_conflicts','created_at'],
+  ['collection_actions','created_at'],['attachments','created_at'],['audit_log','created_at'],['sync_changes','created_at']
+]);
 
 function json(body,status=200,headers={}){return new Response(JSON.stringify(body),{status,headers:{...HEADERS,...headers}});}
 function adminAuth(auth){return Boolean(auth?.installationId&&auth?.userId&&canCloud(auth,'*'));}
@@ -23,6 +30,39 @@ async function listAudit(request,db,auth){
   const rows=await db.prepare(`SELECT a.id,a.actor_id AS actorId,u.name AS actorName,a.action,a.entity_type AS entityType,a.entity_id AS entityId,a.details_json AS detailsJson,a.at,a.created_at AS createdAt FROM audit_log a LEFT JOIN users u ON u.installation_id=a.installation_id AND u.id=a.actor_id WHERE ${clause} ORDER BY a.at DESC,a.id DESC LIMIT ? OFFSET ?`).bind(...params,limit,offset).all();
   const totalRow=await db.prepare(`SELECT COUNT(*) AS total FROM audit_log a WHERE ${clause}`).bind(...params).first(),total=Number(totalRow?.total)||0,items=(rows?.results??[]).map(row=>({...row,details:parseJson(row.detailsJson,{}),detailsJson:undefined}));
   return json({ok:true,items,pagination:{total,limit,offset,nextOffset:offset+items.length<total?offset+items.length:null}});
+}
+async function r2Inventory(r2,installationId){
+  if(!r2?.list)return{available:false,objects:0,bytes:0,attachments:{objects:0,bytes:0},backups:{objects:0,bytes:0}};
+  const result={available:true,objects:0,bytes:0,attachments:{objects:0,bytes:0},backups:{objects:0,bytes:0}};
+  for(const [kind,prefix] of [['attachments',`installations/${installationId}/`],['backups',`backups/${installationId}/`]]){
+    let cursor;
+    do{
+      const page=await r2.list({prefix,limit:1000,cursor}),objects=page?.objects??[];
+      for(const object of objects){result[kind].objects++;result[kind].bytes+=Number(object.size)||0;result.objects++;result.bytes+=Number(object.size)||0;}
+      cursor=page?.truncated?page.cursor:null;
+    }while(cursor);
+  }
+  return result;
+}
+async function dataInventory(env,auth){
+  const tables=[];
+  for(const [table,dateColumn] of INVENTORY_TABLES){
+    const row=await env.DB.prepare(`SELECT COUNT(*) AS total,MIN(${dateColumn}) AS firstAt,MAX(${dateColumn}) AS lastAt FROM ${table} WHERE installation_id=?${table==='sync_changes'?'':' AND deleted_at IS NULL'}`).bind(auth.installationId).first();
+    tables.push({table,total:Number(row?.total)||0,firstAt:row?.firstAt??null,lastAt:row?.lastAt??null});
+  }
+  const migrationRows=await env.DB.prepare(`SELECT id,actor_id AS actorId,details_json AS detailsJson,at FROM audit_log
+    WHERE installation_id=? AND action='migration.cloud.seed' AND deleted_at IS NULL ORDER BY at DESC LIMIT 25`).bind(auth.installationId).all();
+  const actorRows=await env.DB.prepare(`SELECT COALESCE(actor_id,'SYSTEM') AS actorId,COUNT(*) AS total,MIN(at) AS firstAt,MAX(at) AS lastAt
+    FROM audit_log WHERE installation_id=? AND deleted_at IS NULL GROUP BY COALESCE(actor_id,'SYSTEM') ORDER BY total DESC LIMIT 20`).bind(auth.installationId).all();
+  const markerRows=await env.DB.prepare(`SELECT
+    (SELECT COUNT(*) FROM customers WHERE installation_id=? AND deleted_at IS NULL AND (lower(name) LIKE '%qa%' OR lower(name) LIKE '%teste%' OR lower(name) LIKE '%demo%')) AS customers,
+    (SELECT COUNT(*) FROM vehicles WHERE installation_id=? AND deleted_at IS NULL AND (lower(model) LIKE '%qa%' OR lower(model) LIKE '%teste%' OR lower(plate) LIKE '%qa%')) AS vehicles,
+    (SELECT COUNT(*) FROM rentals WHERE installation_id=? AND deleted_at IS NULL AND (lower(COALESCE(notes,'')) LIKE '%qa%' OR lower(COALESCE(notes,'')) LIKE '%teste%' OR lower(COALESCE(notes,'')) LIKE '%demo%')) AS rentals`)
+    .bind(auth.installationId,auth.installationId,auth.installationId).first();
+  const demoAudit=await env.DB.prepare(`SELECT COUNT(*) AS total,MIN(at) AS firstAt,MAX(at) AS lastAt FROM audit_log
+    WHERE installation_id=? AND deleted_at IS NULL AND actor_id IN ('USR-VICTOR-DEMO','USR-VICTOR-DEMO-ISOLATED')`).bind(auth.installationId).first();
+  const r2=await r2Inventory(env.ATTACHMENTS,auth.installationId);
+  return{ok:true,installationId:auth.installationId,tables,migrations:(migrationRows?.results??[]).map(row=>({...row,details:parseJson(row.detailsJson,{}),detailsJson:undefined})),actors:actorRows?.results??[],markers:{customers:Number(markerRows?.customers)||0,vehicles:Number(markerRows?.vehicles)||0,rentals:Number(markerRows?.rentals)||0},demoAudit:{total:Number(demoAudit?.total)||0,firstAt:demoAudit?.firstAt??null,lastAt:demoAudit?.lastAt??null},r2};
 }
 async function updateSettings(request,db,auth){
   const input=await readJson(request),expectedVersion=Number(input.expectedVersion);if(!Number.isInteger(expectedVersion)||expectedVersion<0)return json({ok:false,error:'expected_version_required'},400);
@@ -43,5 +83,5 @@ export function isAdminRoute(request){const p=new URL(request.url).pathname;retu
 export async function handleAdminRoute(request,env,_ctx,{auth=null}={}){
   if(!auth?.installationId||!auth?.userId)return json({ok:false,error:'unauthorized'},401);if(!adminAuth(auth))return json({ok:false,error:'forbidden'},403);if(!env?.DB?.prepare)return json({ok:false,error:'database_unavailable'},503);
   const p=new URL(request.url).pathname,m=request.method.toUpperCase();
-  try{if(p===`${PREFIX}/audit`&&m==='GET')return listAudit(request,env.DB,auth);if(p===`${PREFIX}/settings`&&m==='GET'){const current=await getSettings(env.DB,auth.installationId);return json({ok:true,...current});}if(p===`${PREFIX}/settings`&&m==='PATCH')return updateSettings(request,env.DB,auth);if(p===`${PREFIX}/audit`)return json({ok:false,error:'method_not_allowed'},405,{allow:'GET'});if(p===`${PREFIX}/settings`)return json({ok:false,error:'method_not_allowed'},405,{allow:'GET, PATCH'});return json({ok:false,error:'not_found'},404);}catch(error){if(error?.status)return json({ok:false,error:error.message},error.status);console.error('admin route error',error);return json({ok:false,error:error?.message||'internal_error'},500);}
+  try{if(p===`${PREFIX}/audit`&&m==='GET')return listAudit(request,env.DB,auth);if(p===`${PREFIX}/data-inventory`&&m==='GET')return json(await dataInventory(env,auth));if(p===`${PREFIX}/settings`&&m==='GET'){const current=await getSettings(env.DB,auth.installationId);return json({ok:true,...current});}if(p===`${PREFIX}/settings`&&m==='PATCH')return updateSettings(request,env.DB,auth);if(p===`${PREFIX}/audit`||p===`${PREFIX}/data-inventory`)return json({ok:false,error:'method_not_allowed'},405,{allow:'GET'});if(p===`${PREFIX}/settings`)return json({ok:false,error:'method_not_allowed'},405,{allow:'GET, PATCH'});return json({ok:false,error:'not_found'},404);}catch(error){if(error?.status)return json({ok:false,error:error.message},error.status);console.error('admin route error',error);return json({ok:false,error:error?.message||'internal_error'},500);}
 }
