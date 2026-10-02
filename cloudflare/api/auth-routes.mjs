@@ -1,7 +1,7 @@
 import { API_PREFIX } from '../config.mjs';
 import { hashPassword, verifyPassword } from '../auth/password.mjs';
 import { buildSessionCookie, clearSessionCookie, createSessionRecord, readSessionToken, revokeSessionToken } from '../auth/session.mjs';
-import { ensureGeorgeAdmin, GEORGE_INSTALLATION_ID, loginInstallation } from '../auth/george-provision.mjs';
+import { DEMO_INSTALLATION_ID,ensureGeorgeAdmin, GEORGE_INSTALLATION_ID, loginInstallation } from '../auth/george-provision.mjs';
 
 const JSON_HEADERS=Object.freeze({'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'});
 const MAX_BODY_BYTES=32_000;
@@ -21,8 +21,8 @@ export function createD1AuthService(env,request){
   const db=env?.DB;if(!db?.prepare)throw new Error('database_unavailable');
   return Object.freeze({
     async findUser(installationId,username){
-      if(String(installationId)===GEORGE_INSTALLATION_ID||String(username??'').trim())await ensureGeorgeAdmin(db);
       const effectiveInstallation=loginInstallation(installationId,username);
+      if(effectiveInstallation===GEORGE_INSTALLATION_ID||effectiveInstallation===DEMO_INSTALLATION_ID)await ensureGeorgeAdmin(db);
       return db.prepare(`SELECT id, installation_id, username, name, role, active, password_hash, must_change_password FROM users
         WHERE installation_id = ? AND lower(username) = lower(?) AND active = 1 AND deleted_at IS NULL LIMIT 1`).bind(effectiveInstallation,String(username)).first();
     },
