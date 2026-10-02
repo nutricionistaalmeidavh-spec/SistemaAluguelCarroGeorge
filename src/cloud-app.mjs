@@ -65,7 +65,7 @@ export const MUTATION_REFRESH=Object.freeze({
 });
 export function resourcesForMutation(kind,user){const allowed=new Set(allowedResources(user));return (MUTATION_REFRESH[String(kind)]??[]).filter(resource=>allowed.has(resource));}
 const DEVICE_KEY='cloud:device-id',CLOUD_INSTALLATION_ID='LOCADORA-GEORGE',GEORGE_LOGIN_EMAIL='georgedaut.adm@gmail.com';
-const uiState={view:'overview',editingCustomerId:null,editingVehicleId:null};
+const uiState={view:'overview',editingCustomerId:null,editingVehicleId:null,financeReceivables:{limit:30,offset:0,q:''}};
 let flash='',viewRefreshSequence=0;
 
 function operationId(prefix='OP'){return `${prefix}-${crypto.randomUUID()}`;}
@@ -75,7 +75,26 @@ function allowedResources(user){return Object.entries(RESOURCE_PERMISSIONS).filt
 export function resourcesForView(view,user){const allowed=new Set(allowedResources(user));return (VIEW_RESOURCES[view]??VIEW_RESOURCES.overview).filter(resource=>allowed.has(resource));}
 async function flushPending(repository,runtime){if(!navigator.onLine)return{pushed:null,pulled:null};const pushed=repository.outbox?await runOutbox({outbox:repository.outbox,api:repository.api,blobs:runtime.blobs,baseRetryMs:1_500,maxRetryMs:60_000,limit:50}):null;const pulled=repository.cloudSync?await repository.cloudSync.pullChanges():null;return{pushed,pulled};}
 async function queueOperation(repository,runtime,{kind,payload,operationId:id=operationId(),optimistic=null}={}){const queued=await repository.outbox.enqueue({kind,payload,operationId:id});if(optimistic?.resource&&optimistic?.item)await repository.cache.upsertResourceItem(optimistic.resource,{...optimistic.item,_syncStatus:'pending'});if(navigator.onLine)await flushPending(repository,runtime).catch(()=>{});const current=await repository.outbox.get(queued.id);if(current?.status==='conflict')throw Object.assign(new Error(current.lastError?.code||'version_conflict'),{status:409,code:current.lastError?.code||'version_conflict',details:current.lastError});if(navigator.onLine&&current?.status==='failed'&&Number(current?.lastError?.status||0)>0&&Number(current.lastError.status)<500)throw Object.assign(new Error(current.lastError?.code||'operation_failed'),{status:Number(current.lastError.status),code:current.lastError?.code,details:current.lastError});return current;}
-async function loadCloudState(repository,user,view){const resources=resourcesForView(view,user),[data,missing]=await Promise.all([repository.loadViewState(resources),repository.missingResources(resources)]),repositoryState=repository.status();return{resources,data,missing,online:navigator.onLine&&repositoryState.online!==false,lastError:repositoryState.lastError};}
+async function loadCloudState(repository,user,view){
+  const resources=resourcesForView(view,user),[data,missing,metas]=await Promise.all([
+    repository.loadViewState(resources),
+    repository.missingResources(resources),
+    Promise.all(resources.map(async resource=>[resource,await repository.cache.getResourceMeta(resource)]))
+  ]),repositoryState=repository.status(),pagination=Object.fromEntries(metas.map(([resource,meta])=>[resource,meta?.pagination??{}]));
+  if(navigator.onLine){
+    try{
+      if(view==='overview')data.overviewSummary=[await repository.api.getOverviewSummary()];
+      if(view==='finance'){
+        const [summary,receivables]=await Promise.all([
+          repository.api.getFinanceSummary(),
+          repository.api.getFinanceReceivables(uiState.financeReceivables)
+        ]);
+        data.financeSummary=[summary];data.financeReceivables=receivables.items;pagination.financeReceivables=receivables.pagination;
+      }
+    }catch{}
+  }
+  return{resources,data,missing,pagination,online:navigator.onLine&&repositoryState.online!==false,lastError:repositoryState.lastError};
+}
 function statusText(queue,online,session){const pending=queue.pending+queue.sending,attention=queue.conflict+queue.failed;if(!online&&(pending||attention))return'Salvo neste aparelho';if(session?._offlineSession)return'Sessão local';if(!online)return'Salvo neste aparelho';if(attention)return attention===1?'1 item precisa de atenção':`${attention} itens precisam de atenção`;if(pending)return'Sincronizando…';return'Sincronizado';}
 function syncKindLabel(kind){return({'billing.payment':'Recebimento de parcela','rental.payment':'Recebimento de locação','customer.update':'Alteração de cliente','vehicle.update':'Alteração de veículo','settings.update':'Configurações da empresa'})[String(kind)]??'Alteração pendente';}
 function syncFailureText(code){return({payment_exceeds_balance:'O valor não pôde ser registrado porque o saldo desta cobrança mudou ou ela já foi quitada.',installment_cancelled:'Esta parcela foi cancelada e não aceita novos recebimentos.',reservation_conflict:'O veículo ficou indisponível para o período escolhido.',vehicle_unavailable:'O veículo não está disponível para esta operação.',command_conflict:'Os dados mudaram enquanto a operação era processada. Revise antes de tentar novamente.'})[String(code)]??'Não foi possível concluir esta alteração. Revise os dados antes de tentar novamente.';}
@@ -129,7 +148,7 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
   errorSlot.innerHTML=state.lastError?`<div class="notice error">${esc(state.lastError)}</div>`:'';
   conflictSlot.innerHTML=syncIssuesHtml(conflicts,failed);
   const firstHydration=state.missing.length>0&&navigator.onLine&&safeView!=='administration';
-  viewNode.innerHTML=firstHydration?'<div class="panel" data-test="cloud-view-loading"><strong>Carregando dados desta área…</strong><p class="hint">A navegação permanece disponível enquanto os dados são atualizados.</p></div>':module?.html(snapshot,user)??'<div class="panel">Tela indisponível.</div>';
+  viewNode.innerHTML=firstHydration?'<div class="panel" data-test="cloud-view-loading"><strong>Carregando dados desta área…</strong><p class="hint">A navegação permanece disponível enquanto os dados são atualizados.</p></div>':module?.html(snapshot,user,{...uiState,pagination:state.pagination})??'<div class="panel">Tela indisponível.</div>';
   flash='';
   const rerender=target=>renderCloudHome(app,repository,runtime,session,target??safeView);
   if(firstHydration){
@@ -147,7 +166,9 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
     async deleteEntity(resource,id,expectedVersion){const entity=resource==='customers'?'customer':'vehicle';await queueOperation(repository,runtime,{kind:`${entity}.delete`,payload:{id,expectedVersion},operationId:operationId(entity==='customer'?'CUS':'VEI')});flash=navigator.onLine?'Registro removido e sincronizado.':'Remoção salva neste aparelho.';},
     async uploadFile(file,entityType,entityId){const id=`ATT-${crypto.randomUUID()}`;await runtime.blobs.put(id,file,{entityType,entityId,mimeType:file.type||'application/octet-stream',fileName:file.name||'arquivo'});await queueOperation(repository,runtime,{kind:'attachment.upload',payload:{attachmentId:id},operationId:operationId('ATT')});return id;},
     async flush(){return flushPending(repository,runtime);},async refresh(target=safeView){return renderCloudHome(app,repository,runtime,session,target,{revalidate:false});},
-    async getAdminAudit(filters){return repository.api.getAdminAudit(filters);},async getAdminSettings(){return repository.api.getAdminSettings();},async updateAdminSettings(data,expectedVersion){return repository.api.updateAdminSettings(data,{expectedVersion});},async listCloudBackups(){return repository.api.listCloudBackups();},async createCloudBackup(){return repository.api.createCloudBackup();},
+    async loadResourcePage(resource,options={}){const current=state.pagination?.[resource]??{},next={limit:Number(options.limit??current.limit)||undefined,offset:Number(options.offset??current.offset)||0,q:options.q??current.q??'',filters:options.filters??current.filters??{},from:options.from??current.from??'',to:options.to??current.to??''};await repository.page(resource,next);return renderCloudHome(app,repository,runtime,session,safeView,{revalidate:false});},
+    async loadFinanceReceivables(options={}){uiState.financeReceivables={...uiState.financeReceivables,...options,offset:Number(options.offset??uiState.financeReceivables.offset)||0};return renderCloudHome(app,repository,runtime,session,'finance',{revalidate:false});},
+    async getAdminAudit(filters){return repository.api.getAdminAudit(filters);},async getAdminSettings(){return repository.api.getAdminSettings();},async getAdminDataInventory(){return repository.api.getAdminDataInventory();},async updateAdminSettings(data,expectedVersion){return repository.api.updateAdminSettings(data,{expectedVersion});},async listCloudBackups(){return repository.api.listCloudBackups();},async createCloudBackup(){return repository.api.createCloudBackup();},
     async restoreCloudBackup(id,password){const result=await repository.api.restoreCloudBackup(id,{password,confirmation:'RESTAURAR'});await repository.clearSession();alert(`Restauração concluída. Nova geração: ${Number(result?.restoreGeneration||0)}. Entre novamente para continuar.`);renderLogin(app,repository,runtime);return result;},
     async listDevices(){return repository.api.listDevices();},async revokeDevice(id){const result=await repository.api.revokeDevice(id);if(String(id)===String(currentDeviceId)){await repository.clearSession();alert('Este dispositivo foi revogado. Entre novamente para continuar.');renderLogin(app,repository,runtime);}return result;},async revokeOtherSessions(){return repository.api.revokeOtherSessions();},async revokeAllSessions(){const result=await repository.api.revokeAllSessions();await repository.clearSession();alert('Todas as sessões foram encerradas. Entre novamente para continuar.');renderLogin(app,repository,runtime);return result;},
     downloadRentalContract(id,snap=snapshot){downloadPdf(`contrato-${id}.pdf`,rentalContractPdf(snap,id));},downloadRentalReceipt(id,snap=snapshot){downloadPdf(`recibo-${id}.pdf`,rentalReceiptPdf(snap,id));},downloadInspectionPdf(id,snap=snapshot){downloadPdf(`vistoria-${id}.pdf`,inspectionPdf(snap,id));},downloadIssuedPdf(id,snap=snapshot){downloadPdf(`contrato-emitido-${id}.pdf`,issuedContractPdf(snap,id));}
@@ -160,7 +181,11 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
   shell.querySelector('#cloud-refresh').onclick=()=>void revalidateCloudView(app,repository,runtime,session,safeView,{forceFull:true,renderAfter:true,sequence:renderSequence});
   shell.querySelector('#cloud-sync').onclick=async()=>{try{await flushPending(repository,runtime);flash='Sincronização concluída.';}catch(error){flash=message(error);}await rerender(safeView);};
   shell.querySelector('#cloud-logout').onclick=async()=>{viewRefreshSequence++;try{await repository.api.logout();}catch{}await repository.clearSession();renderLogin(app,repository,runtime);};
-  if(!firstHydration){try{module?.bind?.(viewNode,{snapshot,user,actions,state:uiState});}catch(error){flash=message(error);}}
+  if(!firstHydration){try{module?.bind?.(viewNode,{snapshot,user,actions,state:uiState,pagination:state.pagination});}catch(error){flash=message(error);}}
+  for(const button of viewNode.querySelectorAll('[data-page-resource]'))button.onclick=()=>void actions.loadResourcePage(button.dataset.pageResource,{offset:Number(button.dataset.pageOffset||0)});
+  for(const form of viewNode.querySelectorAll('[data-page-search]'))form.onsubmit=event=>{event.preventDefault();const fd=new FormData(form);void actions.loadResourcePage(form.dataset.pageSearch,{offset:0,q:String(fd.get('q')??'').trim()});};
+  for(const button of viewNode.querySelectorAll('[data-finance-page]'))button.onclick=()=>void actions.loadFinanceReceivables({offset:Number(button.dataset.financePage||0)});
+  for(const form of viewNode.querySelectorAll('[data-finance-search]'))form.onsubmit=event=>{event.preventDefault();const fd=new FormData(form);void actions.loadFinanceReceivables({offset:0,q:String(fd.get('q')??'').trim()});};
   if(revalidate&&navigator.onLine)void revalidateCloudView(app,repository,runtime,session,safeView,{renderAfter:false,sequence:renderSequence});
 }
 
