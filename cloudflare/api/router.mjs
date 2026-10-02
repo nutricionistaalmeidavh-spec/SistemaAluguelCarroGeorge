@@ -40,9 +40,10 @@ export async function routeApi(request,env,_ctx,{auth=null}={}){
   const repo=createD1Repository(env.DB,session.installationId);
   try{
     if(method==='GET'&&!entityId){
-      const limit=Math.min(500,Math.max(1,Number(url.searchParams.get('limit'))||250)),offset=Math.max(0,Number(url.searchParams.get('offset'))||0);
-      const page=await repo.listPage(resource,{limit,offset});
-      return json({ok:true,items:page.items.map(clean),pagination:{limit:page.limit,offset:page.offset,nextOffset:page.nextOffset,hasMore:page.hasMore}});
+      const limit=Math.min(500,Math.max(1,Number(url.searchParams.get('limit'))||250)),offset=Math.max(0,Number(url.searchParams.get('offset'))||0),q=String(url.searchParams.get('q')??'').trim().slice(0,160),from=String(url.searchParams.get('from')??'').trim().slice(0,64),to=String(url.searchParams.get('to')??'').trim().slice(0,64),filters={};
+      for(const publicName of Object.keys(def.filterColumns??{})){const value=url.searchParams.get(publicName);if(value!==null&&value!=='')filters[publicName]=value;}
+      const page=await repo.listPage(resource,{limit,offset,q,filters,from,to});
+      return json({ok:true,items:page.items.map(clean),pagination:{limit:page.limit,offset:page.offset,nextOffset:page.nextOffset,hasMore:page.hasMore,q:page.q,filters:page.filters,from:page.from,to:page.to}});
     }
     if(method==='GET'&&entityId){const item=await repo.get(resource,entityId);return item?json({ok:true,item:clean(item)}):json({ok:false,error:'not_found'},404);}
     if(method==='POST'&&!entityId){

@@ -17,7 +17,7 @@ test('api client usa same-origin/credentials include e serialização JSON estri
   const api=createApiClient({baseUrl:'https://app.example.test',fetchImpl});
   const items=await api.list('customers');
   assert.deepEqual(items,[{id:'CUS-1',name:'Ana'}]);
-  assert.equal(calls[0].url,'https://app.example.test/api/v1/customers');
+  assert.equal(calls[0].url,'https://app.example.test/api/v1/customers?limit=250&offset=0');
   assert.equal(calls[0].options.credentials,'include');
   assert.equal(calls[0].options.method,'GET');
   assert.equal(calls[0].options.headers.get('accept'),'application/json');
@@ -90,6 +90,6 @@ test('runtime publicado seleciona cloud repository sem exigir bridge Electron',a
   const repo=await createRuntimeRepository({documentRef,store:kv,baseUrl:'https://george.example.test',fetchImpl,maxRetries:0});
   assert.equal(repo.kind,'cloud');
   await repo.query('customers');
-  assert.equal(calls[0].url,'https://george.example.test/api/v1/customers');
+  assert.equal(calls[0].url,'https://george.example.test/api/v1/customers?limit=100&offset=0');
   assert.equal(calls[0].options.credentials,'include');
 });

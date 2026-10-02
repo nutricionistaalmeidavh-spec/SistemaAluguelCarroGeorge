@@ -70,12 +70,20 @@ export function buildCloudSnapshot(data={}){
     contractTemplates:list(data.contractTemplates),issuedContracts:list(data.issuedContracts),
     billingPlans:list(data.billingPlans),billingInstallments:installments,billingPayments:list(data.billingPayments),
     collectionActions:list(data.collectionActions),attachments:list(data.attachments),
+    overviewSummary:list(data.overviewSummary)[0]??null,
+    financeSummary:list(data.financeSummary)[0]??null,
+    financeReceivables:list(data.financeReceivables),
     alertState:parse(alertRow?.stateJson??alertRow?.state_json,{}),
     settings:parse(settingsRow?.settingsJson??settingsRow?.settings_json,{}),
     updatedAt:new Date().toISOString()
   };
 }
 
+export function pageControls(resource,pagination={},options={}){
+  const limit=Number(pagination?.limit)||Number(options.limit)||50,offset=Math.max(0,Number(pagination?.offset)||0),hasMore=Boolean(pagination?.hasMore),page=Math.floor(offset/Math.max(1,limit))+1,q=String(pagination?.q??options.q??''),searchMarker=options.searchAttribute?` ${esc(options.searchAttribute)}`:resource==='customers'?' data-customer-search':resource==='vehicles'?' data-vehicle-search':'';
+  const search=options.search?`<form class="server-search" data-page-search="${esc(resource)}"><input name="q" type="search"${searchMarker} value="${esc(q)}" placeholder="${esc(options.placeholder||'Buscar')}"><button type="submit" class="secondary">Buscar</button></form>`:'';
+  return `<div class="server-pagebar">${search}<div class="server-pager"><button type="button" class="secondary" data-page-resource="${esc(resource)}" data-page-offset="${Math.max(0,offset-limit)}" ${offset<=0?'disabled':''}>Anterior</button><span>Página ${page}</span><button type="button" class="secondary" data-page-resource="${esc(resource)}" data-page-offset="${offset+limit}" ${hasMore?'':'disabled'}>Próxima</button></div></div>`;
+}
 export function navHtml(user,active){
   const desktop=navigationFor(user).map(({id,label})=>`<button type="button" data-cloud-nav="${id}" class="nav ${active===id?'active':''}">${label}</button>`).join('');
   return `<div class="desktop-nav-list">${desktop}</div><div class="mobile-nav-shell"><input class="mobile-menu-toggle" id="cloud-mobile-menu" type="checkbox"><label class="mobile-appbar" for="cloud-mobile-menu" aria-label="Abrir central de módulos"><span class="mobile-menu-icon" aria-hidden="true"><i></i><i></i><i></i></span><strong>${esc(mobilePageLabel(user,active))}</strong><span class="mobile-menu-caption">Módulos</span></label><div class="mobile-module-overlay" data-test="mobile-module-central"><label class="mobile-module-backdrop" for="cloud-mobile-menu" aria-label="Fechar central de módulos"></label><section class="mobile-module-panel" role="dialog" aria-modal="true" aria-label="Central de módulos"><header><div><small>Locadora George</small><h2>Central de módulos</h2></div><label class="mobile-module-close" for="cloud-mobile-menu" aria-label="Fechar">×</label></header>${mobileNavHtml(user,active)}</section></div></div>`;

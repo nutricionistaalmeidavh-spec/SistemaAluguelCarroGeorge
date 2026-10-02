@@ -2,6 +2,13 @@ import { ApiError } from '../api/client.mjs';
 
 function message(error){return String(error?.code??error?.message??'unknown_error');}
 function ensureResource(value){const name=String(value??'').trim();if(!name)throw new Error('resource_required');return name;}
+const PAGE_LIMITS=Object.freeze({
+  customers:100,vehicles:100,rentals:40,rentalPayments:100,expenses:50,ledger:100,
+  inspections:40,inspectionItems:250,maintenance:50,billingPlans:50,billingInstallments:80,
+  billingPayments:100,collectionActions:50,contractTemplates:50,issuedContracts:50,attachments:50,
+  alertState:10,appSettings:10
+});
+function defaultLimit(resource){return PAGE_LIMITS[resource]??100;}
 
 export function createCloudRepository({api,cache,outbox=null}={}){
   if(!api||!cache)throw new TypeError('cloud_repository_dependencies_required');
@@ -13,10 +20,12 @@ export function createCloudRepository({api,cache,outbox=null}={}){
     if(error instanceof ApiError&&error.status===401||error?.status===401){state.requiresLogin=true;await cache.clearSession();}
   };
 
-  async function query(resource,{allowCachedOnError=false,meta=null}={}){
+  async function query(resource,{allowCachedOnError=false,meta=null,limit=null,offset=0,q='',filters={},from='',to=''}={}){
     const name=ensureResource(resource);
     try{
-      const items=await api.list(name);await cache.replaceResource(name,items,meta??{hydratedAt:new Date().toISOString()});markSuccess();return items;
+      const page=typeof api.listPage==='function'?await api.listPage(name,{limit:limit??defaultLimit(name),offset,q,filters,from,to}):{items:await api.list(name),pagination:{limit:limit??defaultLimit(name),offset:0,nextOffset:null,hasMore:false,q,filters,from,to}},items=page.items??[];
+      await cache.replaceResource(name,items,meta??{hydratedAt:new Date().toISOString(),pagination:page.pagination});
+      markSuccess();return items;
     }catch(error){
       await markError(error);
       if(allowCachedOnError&&error?.status!==401)return cache.getResource(name);
@@ -44,9 +53,17 @@ export function createCloudRepository({api,cache,outbox=null}={}){
   async function missingResources(resources=[]){
     const names=[...new Set((resources??[]).map(ensureResource))],pairs=await Promise.all(names.map(async name=>[name,await cache.getResourceMeta(name)]));return pairs.filter(([,meta])=>!meta?.hydratedAt).map(([name])=>name);
   }
+  async function page(resource,{limit=null,offset=0,q='',filters={},from='',to=''}={}){
+    const name=ensureResource(resource);
+    try{
+      const response=typeof api.listPage==='function'?await api.listPage(name,{limit:limit??defaultLimit(name),offset,q,filters,from,to}):{items:await api.list(name),pagination:{limit:limit??defaultLimit(name),offset:0,nextOffset:null,hasMore:false,q,filters,from,to}},stamp=new Date().toISOString();
+      await cache.replaceResource(name,response.items??[],{hydratedAt:stamp,pagination:response.pagination});
+      markSuccess();return response;
+    }catch(error){await markError(error);throw error;}
+  }
   async function refresh(resources=[]){
     const names=[...new Set((resources??[]).map(ensureResource))];if(!names.length)return{};
-    const settled=await Promise.all(names.map(async name=>{try{return{name,items:await api.list(name),error:null};}catch(error){return{name,items:null,error};}})),stamp=new Date().toISOString(),writes=settled.filter(item=>!item.error).map(item=>({resource:item.name,items:item.items,meta:{hydratedAt:stamp}}));
+    const settled=await Promise.all(names.map(async name=>{try{const response=typeof api.listPage==='function'?await api.listPage(name,{limit:defaultLimit(name),offset:0}):{items:await api.list(name),pagination:{limit:defaultLimit(name),offset:0,nextOffset:null,hasMore:false}};return{name,items:response.items??[],pagination:response.pagination,error:null};}catch(error){return{name,items:null,pagination:null,error};}})),stamp=new Date().toISOString(),writes=settled.filter(item=>!item.error).map(item=>({resource:item.name,items:item.items,meta:{hydratedAt:stamp,pagination:item.pagination}}));
     if(writes.length)await cache.replaceResources(writes);
     const result={};let lastError=null;
     for(const item of settled){if(item.error){lastError=item.error;await markError(item.error);result[item.name]=await cache.getResource(item.name);}else result[item.name]=item.items;}
@@ -58,5 +75,5 @@ export function createCloudRepository({api,cache,outbox=null}={}){
   async function session(){return cache.getSession();}
   async function clearSession(){state.requiresLogin=true;return cache.clearSession();}
 
-  return Object.freeze({kind:'cloud',query,mutate,loadViewState,missingResources,refresh,flush,status:snapshotStatus,setSession,session,clearSession,cache,outbox});
+  return Object.freeze({kind:'cloud',query,mutate,loadViewState,missingResources,page,refresh,flush,status:snapshotStatus,setSession,session,clearSession,cache,outbox});
 }

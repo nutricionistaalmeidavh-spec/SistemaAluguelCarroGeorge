@@ -24,10 +24,8 @@ test('cada módulo do PWA carrega somente os recursos de que precisa',()=>{
   assert.deepEqual(resourcesForView('customers',admin),['customers']);
   assert.deepEqual(resourcesForView('vehicles',admin),['vehicles']);
   const finance=resourcesForView('finance',admin);
-  assert.ok(finance.includes('ledger'));
-  assert.ok(finance.includes('expenses'));
-  assert.ok(finance.includes('billingInstallments'));
-  assert.ok(finance.length<18,'financeiro não deve hidratar todos os recursos do sistema');
+  assert.deepEqual(finance,['vehicles','expenses'],'financeiro deve buscar KPIs e recebíveis por endpoints agregados e hidratar apenas o necessário para despesas');
+  assert.deepEqual(resourcesForView('overview',admin),[],'dashboard deve ser agregado no D1 sem baixar coleções completas');
 });
 
 test('mutações com efeitos derivados invalidam somente os recursos afetados',()=>{

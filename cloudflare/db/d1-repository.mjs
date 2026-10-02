@@ -13,10 +13,19 @@ export function createD1Repository(db,installationId){
   if(!db?.prepare)throw new TypeError('Binding D1 inválido.');
   const tenant=installation(installationId);
   return Object.freeze({
-    async listPage(resource,{limit=250,offset=0}={}){
-      const def=definition(resource),pageSize=Math.min(500,Math.max(1,Number(limit)||250)),pageOffset=Math.max(0,Number(offset)||0),sql=`SELECT ${def.read.join(', ')} FROM ${def.table} WHERE installation_id = ?${aliveClause(def)} ORDER BY ${orderClause(def)} LIMIT ? OFFSET ?`;
-      const result=await db.prepare(sql).bind(tenant,pageSize+1,pageOffset).all(),rows=result?.results??[],hasMore=rows.length>pageSize,items=hasMore?rows.slice(0,pageSize):rows;
-      return{items,limit:pageSize,offset:pageOffset,nextOffset:hasMore?pageOffset+items.length:null,hasMore};
+    async listPage(resource,{limit=250,offset=0,q='',filters={},from='',to=''}={}){
+      const def=definition(resource),pageSize=Math.min(500,Math.max(1,Number(limit)||250)),pageOffset=Math.max(0,Number(offset)||0),where=['installation_id = ?'],params=[tenant];
+      if(def.softDelete!==false)where.push('deleted_at IS NULL');
+      const search=String(q??'').trim().slice(0,160),searchColumns=Array.isArray(def.searchColumns)?def.searchColumns:[];
+      if(search&&searchColumns.length){where.push(`(${searchColumns.map(column=>`CAST(${column} AS TEXT) LIKE ?`).join(' OR ')})`);for(const _column of searchColumns)params.push(`%${search}%`);}
+      const filterColumns=def.filterColumns??{};
+      for(const [publicName,column] of Object.entries(filterColumns)){const value=filters?.[publicName];if(value===undefined||value===null||String(value)==='')continue;where.push(`${column} = ?`);params.push(String(value));}
+      const dateColumn=def.dateColumn?String(def.dateColumn):null;
+      if(dateColumn&&from){where.push(`${dateColumn} >= ?`);params.push(String(from).slice(0,64));}
+      if(dateColumn&&to){where.push(`${dateColumn} <= ?`);params.push(String(to).slice(0,64));}
+      const sql=`SELECT ${def.read.join(', ')} FROM ${def.table} WHERE ${where.join(' AND ')} ORDER BY ${orderClause(def)} LIMIT ? OFFSET ?`;
+      const result=await db.prepare(sql).bind(...params,pageSize+1,pageOffset).all(),rows=result?.results??[],hasMore=rows.length>pageSize,items=hasMore?rows.slice(0,pageSize):rows;
+      return{items,limit:pageSize,offset:pageOffset,nextOffset:hasMore?pageOffset+items.length:null,hasMore,q:search,filters:{...filters},from:from||'',to:to||''};
     },
     async list(resource,{pageSize=250,maxPages=100}={}){
       const items=[];let offset=0,pages=0;
