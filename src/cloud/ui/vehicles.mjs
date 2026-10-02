@@ -10,23 +10,12 @@ export function vehiclePayload(form,current={}){return{
   documentsJson:JSON.stringify({insuranceExpiry:text(form,'insuranceExpiry'),licensingExpiry:text(form,'licensingExpiry'),inspectionExpiry:text(form,'inspectionExpiry'),renavam:text(form,'renavam'),chassis:text(form,'chassis')})
 };}
 
-function formHtml(current={}){const docs=current.documents??{};return `<form id="cloud-vehicle-form" class="cloud-form cloud-inline-form" data-test="vehicle-form">
+function formHtml(current={}){const docs=current.documents??{};return `<form id="cloud-vehicle-form" class="cloud-form cloud-inline-form cloud-form-sections" data-test="vehicle-form">
   <h2>${current.id?'Editar veículo':'Novo veículo'}</h2>
   <input type="hidden" name="id" value="${esc(current.id??'')}"><input type="hidden" name="version" value="${esc(current.version??'')}">
-  <label>Modelo<input name="model" value="${esc(current.model??'')}" required></label>
-  <label>Placa<input name="plate" value="${esc(current.plate??'')}" required></label>
-  <label>Ano<input name="year" value="${esc(current.year??'')}"></label>
-  <label>Quilometragem<input name="mileage" type="number" min="0" value="${Number(current.mileage||0)}"></label>
-  <label>Categoria<input name="category" value="${esc(current.category??'')}"></label>
-  <label>Cor<input name="color" value="${esc(current.color??'')}"></label>
-  <label>Diária<input name="dailyRate" type="number" min="0" step="0.01" value="${Number(current.dailyRate||0)}" required></label>
-  <label>Valor de compra<input name="purchasePrice" type="number" min="0" step="0.01" value="${Number(current.purchasePrice||0)}"></label>
-  <label>Status<select name="availability">${['disponivel','locado','manutencao'].map(value=>`<option value="${value}" ${current.availability===value?'selected':''}>${value}</option>`).join('')}</select></label>
-  <label>Seguro até<input name="insuranceExpiry" type="date" value="${esc(docs.insuranceExpiry??'')}"></label>
-  <label>Licenciamento até<input name="licensingExpiry" type="date" value="${esc(docs.licensingExpiry??'')}"></label>
-  <label>Inspeção até<input name="inspectionExpiry" type="date" value="${esc(docs.inspectionExpiry??'')}"></label>
-  <label>RENAVAM<input name="renavam" value="${esc(docs.renavam??'')}"></label>
-  <label>Chassi<input name="chassis" value="${esc(docs.chassis??'')}"></label>
+  <fieldset><legend>Identificação</legend><label>Modelo<input name="model" value="${esc(current.model??'')}" required></label><label>Placa<input name="plate" value="${esc(current.plate??'')}" required></label><label>Ano<input name="year" value="${esc(current.year??'')}"></label><label>Categoria<input name="category" value="${esc(current.category??'')}"></label><label>Cor<input name="color" value="${esc(current.color??'')}"></label></fieldset>
+  <fieldset><legend>Operação</legend><label>Quilometragem<input name="mileage" type="number" min="0" value="${Number(current.mileage||0)}"></label><label>Diária<input name="dailyRate" type="number" min="0" step="0.01" value="${Number(current.dailyRate||0)}" required></label><label>Valor de compra<input name="purchasePrice" type="number" min="0" step="0.01" value="${Number(current.purchasePrice||0)}"></label><label>Status<select name="availability">${['disponivel','locado','manutencao'].map(value=>`<option value="${value}" ${current.availability===value?'selected':''}>${value}</option>`).join('')}</select></label></fieldset>
+  <fieldset><legend>Documentos</legend><label>Seguro até<input name="insuranceExpiry" type="date" value="${esc(docs.insuranceExpiry??'')}"></label><label>Licenciamento até<input name="licensingExpiry" type="date" value="${esc(docs.licensingExpiry??'')}"></label><label>Inspeção até<input name="inspectionExpiry" type="date" value="${esc(docs.inspectionExpiry??'')}"></label><label>RENAVAM<input name="renavam" value="${esc(docs.renavam??'')}"></label><label>Chassi<input name="chassis" value="${esc(docs.chassis??'')}"></label></fieldset>
   <div class="full actions"><button class="primary">${current.id?'Salvar alterações':'Salvar veículo'}</button>${current.id?'<button type="button" class="secondary" data-vehicle-cancel>Cancelar</button>':''}</div>
 </form>`;}
 
