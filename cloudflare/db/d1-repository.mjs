@@ -13,9 +13,15 @@ export function createD1Repository(db,installationId){
   if(!db?.prepare)throw new TypeError('Binding D1 inválido.');
   const tenant=installation(installationId);
   return Object.freeze({
-    async list(resource){
-      const def=definition(resource),sql=`SELECT ${def.read.join(', ')} FROM ${def.table} WHERE installation_id = ?${aliveClause(def)} ORDER BY ${orderClause(def)}`;
-      const result=await db.prepare(sql).bind(tenant).all();return result?.results??[];
+    async listPage(resource,{limit=250,offset=0}={}){
+      const def=definition(resource),pageSize=Math.min(500,Math.max(1,Number(limit)||250)),pageOffset=Math.max(0,Number(offset)||0),sql=`SELECT ${def.read.join(', ')} FROM ${def.table} WHERE installation_id = ?${aliveClause(def)} ORDER BY ${orderClause(def)} LIMIT ? OFFSET ?`;
+      const result=await db.prepare(sql).bind(tenant,pageSize+1,pageOffset).all(),rows=result?.results??[],hasMore=rows.length>pageSize,items=hasMore?rows.slice(0,pageSize):rows;
+      return{items,limit:pageSize,offset:pageOffset,nextOffset:hasMore?pageOffset+items.length:null,hasMore};
+    },
+    async list(resource,{pageSize=250,maxPages=100}={}){
+      const items=[];let offset=0,pages=0;
+      while(pages<Math.max(1,Number(maxPages)||100)){const page=await this.listPage(resource,{limit:pageSize,offset});items.push(...page.items);pages++;if(!page.hasMore||page.nextOffset==null)break;offset=page.nextOffset;}
+      return items;
     },
     async get(resource,id){
       const def=definition(resource),entityId=idValue(id),sql=`SELECT ${def.read.join(', ')} FROM ${def.table} WHERE installation_id = ? AND ${idColumn(def)} = ?${aliveClause(def)} LIMIT 1`;

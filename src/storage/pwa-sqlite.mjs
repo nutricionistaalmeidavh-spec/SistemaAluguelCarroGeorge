@@ -34,11 +34,19 @@ async function createIndexedDbStore(){
     request.onerror=()=>reject(request.error||new Error('Falha no armazenamento local.'));
     tx.onabort=()=>reject(tx.error||new Error('Operação local cancelada.'));
   });
+  const setMany=entries=>new Promise((resolve,reject)=>{
+    const list=Array.isArray(entries)?entries:[],tx=db.transaction(IDB_STORE,'readwrite'),store=tx.objectStore(IDB_STORE);
+    for(const entry of list){const key=String(entry?.key??'');if(!key)continue;if(entry?.value==null)store.delete(key);else store.put(String(entry.value),key);}
+    tx.oncomplete=()=>resolve(true);
+    tx.onerror=()=>reject(tx.error||new Error('Falha no armazenamento local.'));
+    tx.onabort=()=>reject(tx.error||new Error('Operação local cancelada.'));
+  });
   return Object.freeze({
     kind:'indexeddb-web',
     fileName:null,
     get:(key)=>txRequest('readonly',store=>store.get(String(key))),
     set:async(key,value)=>{await txRequest('readwrite',store=>store.put(String(value),String(key)));return true;},
+    setMany,
     remove:async(key)=>{await txRequest('readwrite',store=>store.delete(String(key)));return true;},
     flush:async()=>true,
     close:()=>db.close()
@@ -69,9 +77,18 @@ async function createOpfsSqliteStore(){
     db.run(`INSERT INTO kv(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`,[String(key),String(value),new Date().toISOString()]);
     await persist();return true;
   }
+  async function setMany(entries){
+    const stamp=new Date().toISOString();
+    db.run('BEGIN');
+    try{
+      for(const entry of Array.isArray(entries)?entries:[]){const key=String(entry?.key??'');if(!key)continue;if(entry?.value==null)db.run('DELETE FROM kv WHERE key=?',[key]);else db.run(`INSERT INTO kv(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`,[key,String(entry.value),stamp]);}
+      db.run('COMMIT');
+    }catch(error){try{db.run('ROLLBACK');}catch{}throw error;}
+    await persist();return true;
+  }
   async function remove(key){db.run('DELETE FROM kv WHERE key=?',[String(key)]);await persist();return true;}
   await persist();
-  return Object.freeze({kind:'sqlite-opfs',fileName:DB_FILE,get,set,remove,flush:()=>queue,close:()=>db.close()});
+  return Object.freeze({kind:'sqlite-opfs',fileName:DB_FILE,get,set,setMany,remove,flush:()=>queue,close:()=>db.close()});
 }
 
 export async function createPwaSqliteStore(){
