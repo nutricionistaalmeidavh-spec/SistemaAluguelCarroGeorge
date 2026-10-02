@@ -22,6 +22,26 @@ const definitions={
   attachments:readOnly('attachments','documents.read',['entity_type AS entityType','entity_id AS entityId','mime_type AS mimeType','size_bytes AS sizeBytes','sha256','created_by AS createdBy','status'])
 };
 
+const queryMetadata={
+  customers:{searchColumns:['name','document','phone','email'],orderBy:'updated_at DESC, id'},
+  vehicles:{searchColumns:['model','plate','category','color'],filterColumns:{status:'availability'},orderBy:'updated_at DESC, id'},
+  rentals:{searchColumns:['id','status','priority','notes'],filterColumns:{status:'status',customerId:'customer_id',vehicleId:'vehicle_id'},dateColumn:'pickup_at',orderBy:'pickup_at DESC, id DESC'},
+  rentalPayments:{filterColumns:{rentalId:'rental_id',installmentId:'installment_id'},dateColumn:'paid_at',orderBy:'paid_at DESC, id DESC'},
+  expenses:{searchColumns:['description','category'],filterColumns:{vehicleId:'vehicle_id',paid:'paid'},dateColumn:'due_at',orderBy:'COALESCE(due_at,updated_at) DESC, id DESC'},
+  ledger:{searchColumns:['description','status','kind'],filterColumns:{status:'status',rentalId:'rental_id',vehicleId:'vehicle_id',kind:'kind'},dateColumn:'due_at',orderBy:'COALESCE(due_at,updated_at) DESC, id DESC'},
+  inspections:{searchColumns:['id','kind','status','notes'],filterColumns:{status:'status',rentalId:'rental_id',vehicleId:'vehicle_id'},dateColumn:'COALESCE(completed_at,created_at)',orderBy:'COALESCE(completed_at,created_at) DESC, id DESC'},
+  inspectionItems:{filterColumns:{inspectionId:'inspection_id'},orderBy:'created_at DESC, id DESC'},
+  maintenance:{searchColumns:['type','status','notes'],filterColumns:{status:'status',vehicleId:'vehicle_id'},dateColumn:'COALESCE(due_at,created_at)',orderBy:'COALESCE(due_at,created_at) DESC, id DESC'},
+  billingPlans:{filterColumns:{rentalId:'rental_id',customerId:'customer_id',vehicleId:'vehicle_id',active:'active'},dateColumn:'first_due_at',orderBy:'first_due_at DESC, id DESC'},
+  billingInstallments:{searchColumns:['id','status'],filterColumns:{status:'status',rentalId:'rental_id',customerId:'customer_id',vehicleId:'vehicle_id',planId:'plan_id'},dateColumn:'due_at',orderBy:'due_at DESC, id DESC'},
+  billingPayments:{filterColumns:{installmentId:'installment_id'},dateColumn:'paid_at',orderBy:'paid_at DESC, id DESC'},
+  collectionActions:{filterColumns:{installmentId:'installment_id',rentalId:'rental_id',customerId:'customer_id'},dateColumn:'created_at',orderBy:'created_at DESC, id DESC'},
+  contractTemplates:{searchColumns:['name'],filterColumns:{active:'active'},orderBy:'updated_at DESC, id DESC'},
+  issuedContracts:{searchColumns:['template_name','rental_id'],filterColumns:{rentalId:'rental_id',templateId:'template_id'},dateColumn:'created_at',orderBy:'created_at DESC, id DESC'},
+  attachments:{searchColumns:['id','entity_type','entity_id','mime_type','status'],filterColumns:{entityType:'entity_type',entityId:'entity_id',status:'status'},dateColumn:'created_at',orderBy:'created_at DESC, id DESC'}
+};
+for(const [name,meta] of Object.entries(queryMetadata))Object.assign(definitions[name],meta);
+
 for(const definition of Object.values(definitions)){Object.freeze(definition.read);Object.freeze(definition.writable);Object.freeze(definition.required);Object.freeze(definition.collectionMethods);Object.freeze(definition.itemMethods);Object.freeze(definition);}
 export const RESOURCE_MAP=Object.freeze(definitions);
 export function getResourceDefinition(name){return RESOURCE_MAP[String(name||'')]??null;}
