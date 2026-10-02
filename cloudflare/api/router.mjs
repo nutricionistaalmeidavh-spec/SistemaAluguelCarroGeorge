@@ -41,7 +41,7 @@ export async function routeApi(request,env,_ctx,{auth=null}={}){
   try{
     if(method==='GET'&&!entityId){
       const limit=Math.min(500,Math.max(1,Number(url.searchParams.get('limit'))||250)),offset=Math.max(0,Number(url.searchParams.get('offset'))||0);
-      const page=await repo.list(resource,{limit,offset});
+      const page=await repo.listPage(resource,{limit,offset});
       return json({ok:true,items:page.items.map(clean),pagination:{limit:page.limit,offset:page.offset,nextOffset:page.nextOffset,hasMore:page.hasMore}});
     }
     if(method==='GET'&&entityId){const item=await repo.get(resource,entityId);return item?json({ok:true,item:clean(item)}):json({ok:false,error:'not_found'},404);}
