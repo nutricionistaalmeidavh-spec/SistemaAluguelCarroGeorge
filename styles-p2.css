@@ -89,3 +89,16 @@
   .sync-issue-actions .primary{grid-column:auto}
   .finance-secondary-metrics{grid-template-columns:1fr}
 }
+
+
+/* P2 — empty states and Brazilian localization */
+.empty-state{min-height:140px;border:1px dashed #d8dde4;border-radius:12px;background:#fafbfc;padding:24px;display:grid;place-items:center;text-align:center;align-content:center;gap:8px}
+.empty-state strong{font-size:16px;color:#242a33}
+.empty-state p{margin:0;max-width:520px;color:#6b7280;line-height:1.45}
+.empty-state .primary{margin-top:5px}
+input[placeholder="dd/mm/aaaa"],input[placeholder="dd/mm/aaaa hh:mm"]{font-variant-numeric:tabular-nums}
+input[placeholder="dd/mm/aaaa"]::placeholder,input[placeholder="dd/mm/aaaa hh:mm"]::placeholder{color:#9aa1aa;opacity:1}
+@media(max-width:700px){
+  .empty-state{min-height:120px;padding:20px 16px}
+  .empty-state .primary{width:100%;min-height:42px}
+}
