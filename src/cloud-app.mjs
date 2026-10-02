@@ -72,18 +72,19 @@ function ensureCloudShell(app,user){
   app.innerHTML=`<div class="app-shell cloud-shell"><aside class="sidebar"><div class="brand"><span class="brandmark">LV</span><div><small>ARTISYS</small><strong>Locadora George</strong></div></div><nav></nav><div class="sidebar-foot"><small>${esc(user.name||user.username||'Usuário')}</small><button id="cloud-logout" type="button">Sair</button></div></aside><main class="workspace"><header class="topbar"><div><strong id="cloud-sync-state" data-test="cloud-status">Preparando…</strong><small id="cloud-sync-detail"></small></div><div class="actions"><button id="cloud-refresh" type="button">Atualizar</button><button id="cloud-sync" type="button">Sincronizar</button></div></header><div id="cloud-flash-slot"></div><div id="cloud-error-slot"></div><div id="cloud-conflict-slot"></div><section id="cloud-view"></section></main></div>`;
   return app.querySelector('.cloud-shell');
 }
-function cachedDataVisible(data){return Object.values(data??{}).some(value=>Array.isArray(value)&&value.length>0);}
 async function revalidateCloudView(app,repository,runtime,session,view,{forceFull=false,sequence=++viewRefreshSequence}={}){
   const user=session?.user;if(!user||!navigator.onLine)return;
-  const resources=resourcesForView(view,user);
+  const resources=resourcesForView(view,user);let changed=Boolean(forceFull);
   try{
     const missing=forceFull?resources:await repository.missingResources(resources);
-    if(missing.length)await repository.refresh(missing);
-    await flushPending(repository,runtime);
+    if(missing.length){await repository.refresh(missing);changed=true;}
+    const synced=await flushPending(repository,runtime);
+    if(Number(synced?.pushed?.attempted||0)>0||Number(synced?.pulled?.applied||0)>0)changed=true;
   }catch(error){
     if(error?.status===401){await repository.clearSession();renderLogin(app,repository,runtime);return;}
+    changed=true;
   }
-  if(sequence!==viewRefreshSequence||uiState.view!==view)return;
+  if(!changed||sequence!==viewRefreshSequence||uiState.view!==view)return;
   await renderCloudHome(app,repository,runtime,session,view,{revalidate:false});
 }
 
@@ -97,7 +98,7 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
   flashSlot.innerHTML=flash?`<div class="notice" data-test="cloud-flash">${esc(flash)}</div>`:'';
   errorSlot.innerHTML=state.lastError?`<div class="notice error">${esc(state.lastError)}</div>`:'';
   conflictSlot.innerHTML=conflictHtml(conflicts);
-  const firstHydration=state.missing.length>0&&!cachedDataVisible(state.data)&&safeView!=='administration';
+  const firstHydration=state.missing.length>0&&navigator.onLine&&safeView!=='administration';
   viewNode.innerHTML=firstHydration?'<div class="panel" data-test="cloud-view-loading"><strong>Carregando dados desta área…</strong><p class="hint">A navegação permanece disponível enquanto os dados são atualizados.</p></div>':module?.html(snapshot,user)??'<div class="panel">Tela indisponível.</div>';
   flash='';
   const rerender=target=>renderCloudHome(app,repository,runtime,session,target??safeView);
@@ -129,7 +130,7 @@ export async function bootstrapCloudApp({app=document.querySelector('#app'),base
   if('serviceWorker' in navigator&&globalThis.isSecureContext){try{await navigator.serviceWorker.register('./sw.js');}catch{}}
   const cached=await repository.session();
   async function restore(){if(navigator.onLine){try{const live=await repository.api.session();const session={...live,_offlineSession:false};await repository.setSession(session);await renderCloudHome(app,repository,runtime,session,uiState.view);return;}catch(error){if(error?.status===401){await repository.clearSession();renderLogin(app,repository,runtime);return;}if(cached?.user){await renderCloudHome(app,repository,runtime,{...cached,_offlineSession:true},uiState.view);return;}}}if(cached?.user){await renderCloudHome(app,repository,runtime,{...cached,_offlineSession:true},uiState.view);return;}renderLogin(app,repository,runtime);}
-  window.addEventListener('online',()=>{void(async()=>{const local=await repository.session();if(!local?.user)return;try{const live=await repository.api.session();const session={...live,_offlineSession:false};await repository.setSession(session);await renderCloudHome(app,repository,runtime,session,uiState.view);}catch(error){if(error?.status===401){await repository.clearSession();renderLogin(app,repository,runtime);}else await renderCloudHome(app,repository,runtime,{...local,_offlineSession:true},uiState.view);}})();});
+  window.addEventListener('online',()=>{void(async()=>{const local=await repository.session();if(!local?.user)return;try{const live=await repository.api.session();const session={...live,_offlineSession:false};await repository.setSession(session);await renderCloudHome(app,repository,runtime,session,uiState.view,{revalidate:false});await flushPending(repository,runtime);await renderCloudHome(app,repository,runtime,session,uiState.view,{revalidate:false});}catch(error){if(error?.status===401){await repository.clearSession();renderLogin(app,repository,runtime);}else await renderCloudHome(app,repository,runtime,{...local,_offlineSession:true},uiState.view,{revalidate:false});}})();});
   window.addEventListener('offline',()=>{void(async()=>{const local=await repository.session();if(local?.user)await renderCloudHome(app,repository,runtime,{...local,_offlineSession:true},uiState.view);})();});
   await restore();return{repository,runtime};
 }
