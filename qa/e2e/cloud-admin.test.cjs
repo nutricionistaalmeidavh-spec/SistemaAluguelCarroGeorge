@@ -23,7 +23,7 @@ test('PWA mobile administra empresa, auditoria, backups e dispositivos sem Elect
 
   await page.locator('[data-admin-tab="backup"]').click();
   await page.locator('#admin-backup-create').click();
-  await page.getByText('Backup cloud concluído.').waitFor();
+  await page.getByText('Backup na nuvem concluído.').waitFor();
   assert.equal(db.scalar('SELECT COUNT(*) FROM cloud_backups WHERE installation_id=? AND status=?',installationId,'valid'),1);
   const restoreButton=page.locator('[data-admin-restore]').first();await restoreButton.waitFor();await restoreButton.click();
   const restoreForm=page.locator('#admin-restore-form');assert.equal(await restoreForm.isVisible(),true);assert.equal(await restoreForm.locator('input[name="password"]').getAttribute('type'),'password');assert.equal(await restoreForm.locator('input[name="confirmation"]').count(),1);
@@ -32,6 +32,6 @@ test('PWA mobile administra empresa, auditoria, backups e dispositivos sem Elect
   await page.locator('[data-admin-tab="security"]').click();
   const devices=page.locator('[data-admin-devices-body] tr');assert.ok(await devices.count()>=1,'deveria listar o PWA autenticado como dispositivo');
   await page.locator('[data-admin-tab="audit"]').click();
-  await page.locator('#admin-audit-filter input[name="action"]').fill('settings.update');await page.getByRole('button',{name:'Filtrar'}).click();
-  await page.locator('[data-admin-audit-body]').getByText('settings.update').waitFor();
+  await page.locator('#admin-audit-filter input[name="action"]').fill('configurações');await page.getByRole('button',{name:'Filtrar'}).click();
+  await page.locator('[data-admin-audit-body]').getByText('Configurações atualizadas').waitFor();
 });
