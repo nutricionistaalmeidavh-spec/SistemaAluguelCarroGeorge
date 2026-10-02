@@ -3,6 +3,28 @@ export const GEORGE_ADMIN_EMAIL='georgedaut.adm@gmail.com';
 const GEORGE_ADMIN_ID='USR-GEORGE-ADMIN';
 const GEORGE_ADMIN_LEGACY_PASSWORD_HASH='pbkdf2-sha256$310000$fb088d29d93054f9534c620d5957891e$327213206bd0c0e8eacd737cc8f903f2035a0874d2a4f34d6df19f382a785496';
 const GEORGE_ADMIN_PASSWORD_HASH='pbkdf2-sha256$100000$fb088d29d93054f9534c620d5957891e$531b64d6082559da260586e4f6c1d79626043b5d0558528b08f3fb28d8546ec0';
+const DEMO_ADMIN_EMAIL='nutricionistaalmeidavh@gmail.com';
+const DEMO_ADMIN_ID='USR-VICTOR-DEMO';
+const DEMO_ADMIN_PASSWORD_HASH='pbkdf2-sha256$100000$fc1e2d246b172882697acbb4124437da$211ce96ca17e00102b8dde79482b32492bfaf531d8de0a3e38ef38efb1c1acd1';
+
+async function insertInitialAdmin(db,{id,email,name,passwordHash,now}){
+  await db.prepare(`INSERT INTO users (
+      id,installation_id,username,name,role,active,password_hash,must_change_password,
+      created_at,updated_at,version,updated_by_device,deleted_at
+    ) VALUES (?,?,?,?,?,1,?,1,?,?,1,?,NULL)
+    ON CONFLICT(installation_id,username) DO NOTHING`)
+    .bind(
+      id,
+      GEORGE_INSTALLATION_ID,
+      email,
+      name,
+      'admin',
+      passwordHash,
+      now,
+      now,
+      'SYSTEM-PROVISION'
+    ).run();
+}
 
 export async function ensureGeorgeAdmin(db,{now=new Date().toISOString()}={}){
   if(!db?.prepare)throw new TypeError('database_required');
@@ -15,22 +37,23 @@ export async function ensureGeorgeAdmin(db,{now=new Date().toISOString()}={}){
   // Provisionamento continua create-only. A única exceção é a migração do hash
   // inicial legado, ainda não utilizado pelo cliente, enquanto o primeiro acesso
   // permanece pendente. Senhas já escolhidas nunca são sobrescritas.
-  await db.prepare(`INSERT INTO users (
-      id,installation_id,username,name,role,active,password_hash,must_change_password,
-      created_at,updated_at,version,updated_by_device,deleted_at
-    ) VALUES (?,?,?,?,?,1,?,1,?,?,1,?,NULL)
-    ON CONFLICT(installation_id,username) DO NOTHING`)
-    .bind(
-      GEORGE_ADMIN_ID,
-      GEORGE_INSTALLATION_ID,
-      GEORGE_ADMIN_EMAIL,
-      'George',
-      'admin',
-      GEORGE_ADMIN_PASSWORD_HASH,
-      now,
-      now,
-      'SYSTEM-PROVISION'
-    ).run();
+  await insertInitialAdmin(db,{
+    id:GEORGE_ADMIN_ID,
+    email:GEORGE_ADMIN_EMAIL,
+    name:'George',
+    passwordHash:GEORGE_ADMIN_PASSWORD_HASH,
+    now
+  });
+
+  // Conta administrativa de demonstração solicitada pelo proprietário.
+  // Também é create-only e exige troca da senha temporária no primeiro acesso.
+  await insertInitialAdmin(db,{
+    id:DEMO_ADMIN_ID,
+    email:DEMO_ADMIN_EMAIL,
+    name:'Victor Demo',
+    passwordHash:DEMO_ADMIN_PASSWORD_HASH,
+    now
+  });
 
   let user=await db.prepare(`SELECT id,installation_id,username,name,role,active,password_hash,must_change_password,deleted_at
     FROM users WHERE installation_id=? AND lower(username)=lower(?) LIMIT 1`)
