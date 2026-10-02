@@ -40,6 +40,30 @@ export const VIEW_RESOURCES=Object.freeze({
   maintenance:Object.freeze(['vehicles','maintenance']),
   administration:Object.freeze([])
 });
+export const MUTATION_REFRESH=Object.freeze({
+  'rental.create':Object.freeze(['rentals','ledger','billingPlans','billingInstallments']),
+  'rental.advance':Object.freeze(['rentals','vehicles']),
+  'rental.closeContinuous':Object.freeze(['rentals','billingPlans','billingInstallments','ledger']),
+  'rental.payment':Object.freeze(['rentals','rentalPayments','ledger']),
+  'billing.payment':Object.freeze(['billingInstallments','billingPayments','rentals','ledger']),
+  'billing.plan.create':Object.freeze(['billingPlans','billingInstallments','ledger']),
+  'expense.create':Object.freeze(['expenses','ledger']),
+  'expense.update':Object.freeze(['expenses','ledger']),
+  'expense.delete':Object.freeze(['expenses','ledger']),
+  'inspection.create':Object.freeze(['inspections','inspectionItems','attachments']),
+  'maintenance.create':Object.freeze(['maintenance']),
+  'maintenance.start':Object.freeze(['maintenance','vehicles']),
+  'maintenance.complete':Object.freeze(['maintenance','vehicles','expenses','ledger']),
+  'contract.template.create':Object.freeze(['contractTemplates']),
+  'contract.template.update':Object.freeze(['contractTemplates']),
+  'contract.template.duplicate':Object.freeze(['contractTemplates']),
+  'contract.template.deactivate':Object.freeze(['contractTemplates']),
+  'contract.issue':Object.freeze(['issuedContracts']),
+  'collectionAction.create':Object.freeze(['collectionActions']),
+  'alert.acknowledge':Object.freeze(['alertState']),
+  'alert.dismiss':Object.freeze(['alertState'])
+});
+export function resourcesForMutation(kind,user){const allowed=new Set(allowedResources(user));return (MUTATION_REFRESH[String(kind)]??[]).filter(resource=>allowed.has(resource));}
 const DEVICE_KEY='cloud:device-id',CLOUD_INSTALLATION_ID='LOCADORA-GEORGE',GEORGE_LOGIN_EMAIL='georgedaut.adm@gmail.com';
 const uiState={view:'overview',editingCustomerId:null,editingVehicleId:null};
 let flash='',viewRefreshSequence=0;
@@ -111,7 +135,7 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
   }
   const actions={
     currentDeviceId,
-    async queue(kind,payload,prefix='OP'){try{const result=await queueOperation(repository,runtime,{kind,payload,operationId:operationId(prefix)});flash=successFor(kind,navigator.onLine&&result?.status==='synced');return result;}catch(error){flash=message(error);throw error;}},
+    async queue(kind,payload,prefix='OP'){try{const result=await queueOperation(repository,runtime,{kind,payload,operationId:operationId(prefix)});if(navigator.onLine&&result?.status==='synced'){const invalidated=resourcesForMutation(kind,user);if(invalidated.length)await repository.refresh(invalidated);}flash=successFor(kind,navigator.onLine&&result?.status==='synced');return result;}catch(error){flash=message(error);throw error;}},
     async createEntity(resource,data){const entity=resource==='customers'?'customer':'vehicle',id=`${entity==='customer'?'CUS':'VEI'}-${crypto.randomUUID()}`,payload={id,...data};await queueOperation(repository,runtime,{kind:`${entity}.create`,payload,operationId:operationId(entity==='customer'?'CUS':'VEI'),optimistic:{resource,item:{...payload,version:0}}});flash=successFor(`${entity}.create`,navigator.onLine);},
     async updateEntity(resource,id,data,expectedVersion){const entity=resource==='customers'?'customer':'vehicle';await queueOperation(repository,runtime,{kind:`${entity}.update`,payload:{id,data,expectedVersion},operationId:operationId(entity==='customer'?'CUS':'VEI')});flash=navigator.onLine?'Alteração salva e sincronizada.':'Alteração salva neste aparelho.';},
     async deleteEntity(resource,id,expectedVersion){const entity=resource==='customers'?'customer':'vehicle';await queueOperation(repository,runtime,{kind:`${entity}.delete`,payload:{id,expectedVersion},operationId:operationId(entity==='customer'?'CUS':'VEI')});flash=navigator.onLine?'Registro removido e sincronizado.':'Remoção salva neste aparelho.';},
