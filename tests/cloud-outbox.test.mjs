@@ -98,6 +98,27 @@ test('pendência financeira rejeitada só é descartada por ação explícita do
   assert.equal(discarded.result.reason,'reviewed_by_user');
 });
 
+test('conflito legado sem versão atual da nuvem vira pendência revisável sem perder erro',async()=>{
+  const kv=memoryKv(),outbox=createOutbox(kv);
+  await outbox.enqueue({id:'Q-LEGACY',operationId:'OP-LEGACY',kind:'billing.payment',payload:{installmentId:'PAR-1',amount:120}});
+  await outbox.markConflict('Q-LEGACY',{status:409,code:'payment_exceeds_balance',details:{current:null}});
+  await outbox.enqueue({id:'Q-REAL',operationId:'OP-REAL',kind:'customer.update',payload:{id:'CUS-1',expectedVersion:1,data:{name:'Novo'}}});
+  await outbox.markConflict('Q-REAL',{status:409,code:'version_conflict',details:{current:{id:'CUS-1',version:2}}});
+  assert.equal(await outbox.normalizeInvalidConflicts(),1);
+  const legacy=await outbox.get('Q-LEGACY'),real=await outbox.get('Q-REAL');
+  assert.equal(legacy.status,'failed');
+  assert.equal(legacy.lastError.code,'payment_exceeds_balance');
+  assert.equal(real.status,'conflict');
+  assert.deepEqual(real.lastError.details.current,{id:'CUS-1',version:2});
+});
+
+test('conflito sem versão atual não pode ser resolvido como aceitar nuvem',async()=>{
+  const kv=memoryKv(),outbox=createOutbox(kv);
+  await outbox.enqueue({id:'Q-BAD',operationId:'OP-BAD',kind:'billing.payment',payload:{installmentId:'PAR-1',amount:120}});
+  await outbox.markConflict('Q-BAD',{status:409,code:'payment_exceeds_balance',details:{current:null}});
+  await assert.rejects(()=>outbox.resolveConflict('Q-BAD',{strategy:'accept-cloud'}),/conflict_missing_cloud_version/);
+});
+
 test('attachment offline só remove blob depois de confirmação do upload',async()=>{
   const kv=memoryKv(),backend=memoryBlobBackend(),outbox=createOutbox(kv),blobs=createOfflineBlobStore({backend});
   await blobs.put('ATT-1',new Blob(['evidencia'],{type:'image/jpeg'}),{entityType:'inspection',entityId:'INS-1',fileName:'evidencia.jpg'});
