@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createApiClient } from '../src/api/client.mjs';
 import { createCacheStore } from '../src/storage/cache-store.mjs';
 import { createCloudRepository } from '../src/storage/cloud-repository.mjs';
-import { resourcesForView } from '../src/cloud-app.mjs';
+import { resourcesForMutation,resourcesForView } from '../src/cloud-app.mjs';
 
 const admin={id:'USR-1',role:'admin',active:true};
 
@@ -28,6 +28,12 @@ test('cada módulo do PWA carrega somente os recursos de que precisa',()=>{
   assert.ok(finance.includes('expenses'));
   assert.ok(finance.includes('billingInstallments'));
   assert.ok(finance.length<18,'financeiro não deve hidratar todos os recursos do sistema');
+});
+
+test('mutações com efeitos derivados invalidam somente os recursos afetados',()=>{
+  assert.deepEqual(resourcesForMutation('rental.create',admin),['rentals','ledger','billingPlans','billingInstallments']);
+  assert.deepEqual(resourcesForMutation('billing.payment',admin),['billingInstallments','billingPayments','rentals','ledger']);
+  assert.deepEqual(resourcesForMutation('maintenance.complete',admin),['maintenance','vehicles','expenses','ledger']);
 });
 
 test('refresh cloud busca recursos independentes em paralelo e persiste em um único lote',async()=>{
