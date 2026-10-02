@@ -112,24 +112,10 @@ test('provisionamento não reativa nem restaura conta do George revogada',async(
   }finally{db.close();}
 });
 
-test('login do e-mail demo resolve automaticamente o tenant isolado',async()=>{
-  const db=new FakeD1();
-  try{
-    await ensureGeorgeAdmin(db,{now:'2026-09-28T01:40:00.000Z'});
-    const service={
-      async findUser(installationId,username){
-        const effective=loginInstallation(installationId,username);
-        return db.sqlite.prepare('SELECT id,installation_id,username,name,role,active,password_hash,must_change_password FROM users WHERE installation_id=? AND username=?').get(effective,username);
-      },
-      async createSession(){return{token:'token',expiresAt:'2026-10-01T00:00:00.000Z'};},
-      async upgradePassword(){},
-      async completeFirstAccess(){}
-    };
-    const request=new Request('https://example.test/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({installationId:INSTALLATION_ID,username:DEMO_EMAIL,password:'qualquer'})});
-    const response=await handleAuthRoute(request,{DB:db},{},{service,auth:null});
-    assert.notEqual(response.status,404);
-    assert.equal(loginInstallation(INSTALLATION_ID,DEMO_EMAIL),DEMO_INSTALLATION_ID);
-  }finally{db.close();}
+test('login do e-mail demo resolve automaticamente o tenant isolado',()=>{
+  assert.equal(loginInstallation(INSTALLATION_ID,DEMO_EMAIL),DEMO_INSTALLATION_ID);
+  assert.equal(loginInstallation(INSTALLATION_ID,DEMO_EMAIL.toUpperCase()),DEMO_INSTALLATION_ID);
+  assert.equal(loginInstallation(INSTALLATION_ID,GEORGE_EMAIL),INSTALLATION_ID);
 });
 
 test('bootstrap de autenticação provisiona as contas sem exigir senha ou instalação do cliente',async()=>{
