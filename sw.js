@@ -1,5 +1,5 @@
 const CACHE_PREFIX='artisys-locadora-george-';
-const CACHE=CACHE_PREFIX+'0.7.0-cloud-mobile-4';
+const CACHE=CACHE_PREFIX+'0.7.0-cloud-mobile-5';
 const SHELL=['./','./index.html','./styles.css','./styles-p1.css','./styles-p2.css','./styles-payments.css','./manifest.webmanifest','./src/bootstrap.mjs','./src/cloud-app.mjs','./src/app.mjs','./src/api/client.mjs','./src/storage/repository.mjs','./src/storage/pwa-sqlite.mjs','./src/storage/cache-store.mjs','./src/storage/cloud-repository.mjs','./src/storage/offline-blob-store.mjs','./src/storage/attachment-store.mjs','./src/sync/cloud-sync.mjs','./src/sync/outbox.mjs','./src/sync/outbox-runner.mjs','./vendor/sqlite/sql-wasm.js','./vendor/sqlite/sql-wasm.wasm'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith(CACHE_PREFIX)&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
