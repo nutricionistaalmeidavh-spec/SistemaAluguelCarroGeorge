@@ -1,7 +1,7 @@
 import { can } from '../../domain/auth.mjs';
 
 export const PWA_NAV=Object.freeze([
-  Object.freeze({id:'overview',label:'Visão geral',permission:null}),
+  Object.freeze({id:'overview',label:'Hoje',permission:null}),
   Object.freeze({id:'customers',label:'Clientes',permission:'customer.read'}),
   Object.freeze({id:'vehicles',label:'Frota',permission:'vehicle.read'}),
   Object.freeze({id:'rentals',label:'Locações',permission:'rental.read'}),
@@ -13,25 +13,43 @@ export const PWA_NAV=Object.freeze([
   Object.freeze({id:'documents',label:'Documentos',permission:'documents.read'}),
   Object.freeze({id:'alerts',label:'Alertas',permission:'alerts.read'}),
   Object.freeze({id:'maintenance',label:'Manutenção',permission:'maintenance.read'}),
-  Object.freeze({id:'administration',label:'Administração',permission:'admin.access'})
+  Object.freeze({id:'administration',label:'Configurações',permission:'admin.access'})
 ]);
 
+export const PRIMARY_NAV_IDS=Object.freeze(['overview','rentals','customers','vehicles','finance']);
+export const SECONDARY_NAV_IDS=Object.freeze(['inspections','billing','delinquency','maintenance','contracts','documents','alerts','administration']);
+const NAV_PARENT=Object.freeze({
+  inspections:'rentals',
+  contracts:'rentals',
+  documents:'rentals',
+  billing:'finance',
+  delinquency:'finance',
+  maintenance:'vehicles',
+  alerts:'overview'
+});
+
 export const MOBILE_NAV_GROUPS=Object.freeze([
-  Object.freeze({label:'Operação',ids:Object.freeze(['overview','rentals','customers','billing','inspections','finance'])}),
-  Object.freeze({label:'Gestão',ids:Object.freeze(['finance','delinquency','vehicles','maintenance'])}),
-  Object.freeze({label:'Documentos e sistema',ids:Object.freeze(['contracts','documents','alerts','administration'])})
+  Object.freeze({label:'Principal',ids:PRIMARY_NAV_IDS}),
+  Object.freeze({label:'Mais',ids:SECONDARY_NAV_IDS})
 ]);
 
 const MOBILE_NAV_LABELS=Object.freeze({inspections:'Vistoria',administration:'Configurações'});
 
 export function navigationFor(user){return PWA_NAV.filter(item=>item.permission==null||can(user,item.permission));}
+export function primaryNavigationFor(user){const allowed=new Map(navigationFor(user).map(item=>[item.id,item]));return PRIMARY_NAV_IDS.map(id=>allowed.get(id)).filter(Boolean);}
+export function secondaryNavigationFor(user){const allowed=new Map(navigationFor(user).map(item=>[item.id,item]));return SECONDARY_NAV_IDS.map(id=>allowed.get(id)).filter(Boolean);}
+export function navigationParentFor(id){return NAV_PARENT[String(id)]??String(id);}
 export function mobileLabelFor(id,fallback=''){return MOBILE_NAV_LABELS[id]??fallback;}
 export function mobileNavigationGroups(user){
   const allowed=new Map(navigationFor(user).map(item=>[item.id,item]));
-  return MOBILE_NAV_GROUPS.map(group=>({label:group.label,items:group.ids.map(id=>{const item=allowed.get(id);if(!item)return null;const shortcut=group.label==='Operação'&&id==='finance';return{...item,mobileLabel:shortcut?'Dar baixa':mobileLabelFor(id,item.label),shortcut};}).filter(Boolean)})).filter(group=>group.items.length);
+  return MOBILE_NAV_GROUPS.map(group=>({
+    label:group.label,
+    items:group.ids.map(id=>{const item=allowed.get(id);return item?{...item,mobileLabel:mobileLabelFor(id,item.label)}:null;}).filter(Boolean)
+  })).filter(group=>group.items.length);
 }
 export function mobileNavHtml(user,active){
-  return mobileNavigationGroups(user).map(group=>`<section class="mobile-module-group"><h3>${esc(group.label)}</h3><div class="mobile-module-grid">${group.items.map(({id,mobileLabel,shortcut})=>{const selected=!shortcut&&active===id;return `<button type="button" data-cloud-nav="${id}"${shortcut?' data-cloud-shortcut="payment"':''} class="mobile-module-card ${selected?'active':''}"${selected?' aria-current="page"':''}><span>${esc(mobileLabel)}</span></button>`;}).join('')}</div></section>`).join('');
+  const parent=navigationParentFor(active);
+  return mobileNavigationGroups(user).map(group=>`<section class="mobile-module-group"><h3>${esc(group.label)}</h3><div class="mobile-module-grid">${group.items.map(({id,mobileLabel})=>{const selected=id===active||(group.label==='Principal'&&id===parent);return `<button type="button" data-cloud-nav="${id}" class="mobile-module-card ${selected?'active':''}"${selected?' aria-current="page"':''}><span>${esc(mobileLabel)}</span></button>`;}).join('')}</div></section>`).join('');
 }
 export function mobilePageLabel(user,active){const item=navigationFor(user).find(entry=>entry.id===active);return mobileLabelFor(active,item?.label??'Menu');}
 export function esc(value){return String(value??'').replace(/[&<>\"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char]));}
@@ -85,6 +103,9 @@ export function pageControls(resource,pagination={},options={}){
   return `<div class="server-pagebar">${search}<div class="server-pager"><button type="button" class="secondary" data-page-resource="${esc(resource)}" data-page-offset="${Math.max(0,offset-limit)}" ${offset<=0?'disabled':''}>Anterior</button><span>Página ${page}</span><button type="button" class="secondary" data-page-resource="${esc(resource)}" data-page-offset="${offset+limit}" ${hasMore?'':'disabled'}>Próxima</button></div></div>`;
 }
 export function navHtml(user,active){
-  const desktop=navigationFor(user).map(({id,label})=>`<button type="button" data-cloud-nav="${id}" class="nav ${active===id?'active':''}">${label}</button>`).join('');
-  return `<div class="desktop-nav-list">${desktop}</div><div class="mobile-nav-shell"><input class="mobile-menu-toggle" id="cloud-mobile-menu" type="checkbox"><label class="mobile-appbar" for="cloud-mobile-menu" aria-label="Abrir central de módulos"><span class="mobile-menu-icon" aria-hidden="true"><i></i><i></i><i></i></span><strong>${esc(mobilePageLabel(user,active))}</strong><span class="mobile-menu-caption">Módulos</span></label><div class="mobile-module-overlay" data-test="mobile-module-central"><label class="mobile-module-backdrop" for="cloud-mobile-menu" aria-label="Fechar central de módulos"></label><section class="mobile-module-panel" role="dialog" aria-modal="true" aria-label="Central de módulos"><header><div><small>Locadora George</small><h2>Central de módulos</h2></div><label class="mobile-module-close" for="cloud-mobile-menu" aria-label="Fechar">×</label></header>${mobileNavHtml(user,active)}</section></div></div>`;
+  const parent=navigationParentFor(active);
+  const primary=primaryNavigationFor(user).map(({id,label})=>`<button type="button" data-cloud-nav="${id}" class="nav ${parent===id?'active':''}">${label}</button>`).join('');
+  const secondary=secondaryNavigationFor(user),advancedActive=secondary.some(item=>item.id===active);
+  const more=secondary.length?`<details class="desktop-nav-more" ${advancedActive?'open':''}><summary>Mais</summary><div class="desktop-nav-more-list">${secondary.map(({id,label})=>`<button type="button" data-cloud-nav="${id}" class="nav ${active===id?'active':''}">${label}</button>`).join('')}</div></details>`:'';
+  return `<div class="desktop-nav-list">${primary}${more}</div><div class="mobile-nav-shell"><input class="mobile-menu-toggle" id="cloud-mobile-menu" type="checkbox"><label class="mobile-appbar" for="cloud-mobile-menu" aria-label="Abrir menu"><span class="mobile-menu-icon" aria-hidden="true"><i></i><i></i><i></i></span><strong>${esc(mobilePageLabel(user,active))}</strong><span class="mobile-menu-caption">Menu</span></label><div class="mobile-module-overlay" data-test="mobile-module-central"><label class="mobile-module-backdrop" for="cloud-mobile-menu" aria-label="Fechar menu"></label><section class="mobile-module-panel" role="dialog" aria-modal="true" aria-label="Menu da locadora"><header><div><small>Locadora George</small><h2>Menu</h2></div><label class="mobile-module-close" for="cloud-mobile-menu" aria-label="Fechar">×</label></header>${mobileNavHtml(user,active)}</section></div></div>`;
 }
