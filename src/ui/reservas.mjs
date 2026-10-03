@@ -1,11 +1,10 @@
 import { getFinancialSummary, moveRental } from '../domain/rental.mjs';
 import { createInspection } from '../domain/inspection.mjs';
-import { closeContinuousDailyRental, createRentalWithBilling, dailyBillingSummary, nextDailyInstallment, recordDailyPaymentAmount, recordNextDailyPayment } from '../domain/daily-billing.mjs';
-import { dailyPaymentReceiptPdf } from '../domain/documents.mjs';
+import { closeContinuousDailyRental, createRentalWithBilling } from '../domain/daily-billing.mjs';
 import { can } from '../domain/auth.mjs';
 import { closeModal, date, esc, modal, money, toast } from './common.mjs';
+import { openRentalPayment } from './payments.mjs';
 
-function pdf(name,bytes){const blob=new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
 function localInput(value=new Date()){const d=value instanceof Date?value:new Date(value);const local=new Date(d.getTime()-d.getTimezoneOffset()*60_000);return local.toISOString().slice(0,16);}
 function rentalStatusLabel(status){return({reserva:'Locação',retirada:'Retirada',em_uso:'Em uso',devolucao:'Devolvida'}[status]||String(status||'').replaceAll('_',' '));}
 
@@ -22,7 +21,7 @@ export function renderReservas(view, ctx) {
   view.querySelectorAll('[data-rental-finish]').forEach(b=>b.onclick=()=>finishRentalTask(ctx,b.dataset.rentalFinish,b.dataset.target));
   view.querySelectorAll('[data-close-continuous]').forEach(b=>b.onclick=()=>showContinuousClose(ctx,b.dataset.closeContinuous));
   view.querySelectorAll('[data-contract]').forEach(b=>b.onclick=()=>printContract(b.dataset.contract,snapshot));
-  view.querySelectorAll('[data-daily-control]').forEach(b=>b.onclick=()=>showDailyControl(ctx,b.dataset.dailyControl));
+  view.querySelectorAll('[data-rental-payment]').forEach(b=>b.onclick=()=>openRentalPayment(ctx,b.dataset.rentalPayment));
 }
 
 function renderAgenda(rows,snapshot) {
@@ -43,8 +42,8 @@ function rentalRow(r,snapshot,sessionUser) {
     else if(continuousOpen)operation=`<button class="primary" data-close-continuous="${esc(r.id)}">Concluir devolução</button>`;
     else operation=`<button class="primary" data-rental-finish="${esc(r.id)}" data-target="devolucao">Concluir devolução</button>`;
   }
-  const daily=r.billingMode==='daily'&&can(sessionUser,'billing.read')?`<button data-daily-control="${esc(r.id)}">Receber pagamento</button>`:'';
-  return `<tr><td>${esc(r.id)}</td><td>${esc(c?.name||'-')}</td><td>${esc(v?.model||'-')}<small>${esc(v?.plate||'')}</small></td><td>${date(r.pickupAt)}</td><td>${r.returnAt?date(r.returnAt):'<span class="badge">Contínua</span>'}</td><td><span class="badge">${esc(rentalStatusLabel(r.status))}</span></td><td>${money(r.total)}</td><td class="actions">${operation}${daily}<button data-contract="${r.id}">Documentos</button></td></tr>`;
+  const canReceive=r.billingMode==='daily'?can(sessionUser,'billing.write'):can(sessionUser,'finance.write'),payment=canReceive&&r.paymentStatus!=='pago'?`<button data-rental-payment="${esc(r.id)}">Receber pagamento</button>`:'';
+  return `<tr><td>${esc(r.id)}</td><td>${esc(c?.name||'-')}</td><td>${esc(v?.model||'-')}<small>${esc(v?.plate||'')}</small></td><td>${date(r.pickupAt)}</td><td>${r.returnAt?date(r.returnAt):'<span class="badge">Contínua</span>'}</td><td><span class="badge">${esc(rentalStatusLabel(r.status))}</span></td><td>${money(r.total)}</td><td class="actions">${operation}${payment}<button data-contract="${r.id}">Documentos</button></td></tr>`;
 }
 
 function openRentalInspection(ctx,rentalId,kind){
@@ -69,40 +68,6 @@ function finishRentalTask(ctx,rentalId,target){
     else if(target==='devolucao'&&rental.status==='em_uso')working=moveRental(working,rentalId,'devolucao',sessionUser.id);
     save(working);toast(target==='devolucao'?'Devolução concluída.':'Retirada concluída.');
   }catch(error){toast(error.message);}
-}
-
-function showDailyControl(ctx,rentalId){
-  const {snapshot,sessionUser}=ctx;
-  if(!can(sessionUser,'billing.read')){toast('Sem permissão para visualizar cobranças.');return;}
-  const rental=snapshot.rentals.find(r=>r.id===rentalId);
-  const summary=dailyBillingSummary(snapshot,rentalId,new Date().toISOString());
-  const next=nextDailyInstallment(snapshot,rentalId),writable=can(sessionUser,'billing.write');
-  const statusLabel={paid:'Pago',partial:'Parcial',overdue:'Atrasado',pending:'Pendente'};
-  const nextBalance=next?Math.max(0,Number(next.amount||0)-Number(next.paidAmount||0)):0;
-  const actions=writable&&next?`<div class="actions"><button id="receive-next-daily" class="primary">Receber diária</button><button id="receive-multiple-daily">Receber várias</button></div>`:'';
-  const conflict=summary.conflictCount?`<p class="error"><b>Atenção:</b> ${summary.conflictCount} recebimento(s) concorrente(s) foram bloqueados para evitar duplicidade. Confira o histórico antes de qualquer ajuste manual.</p>`:'';
-  modal('Controle de diárias',`<div class="cards"><article><small>Diárias</small><strong>${summary.totalCount}</strong></article><article><small>Pagas</small><strong>${summary.paidCount}</strong></article><article><small>Recebido</small><strong>${money(summary.received)}</strong></article><article><small>A receber</small><strong>${money(summary.openAmount)}</strong></article></div>${conflict}${next?`<section class="panel"><div class="panel-title"><div><small>PRÓXIMA DIÁRIA</small><h2>Diária ${next.sequence} · ${date(next.dueAt)}</h2></div><strong>${money(nextBalance)}</strong></div>${actions}</section>`:'<section class="panel"><div class="empty">Todas as diárias estão quitadas.</div></section>'}<section class="panel"><div class="panel-title"><h2>${esc(rental?.id||rentalId)}</h2><span>${summary.pendingCount} pendente(s)</span></div><div class="table-wrap"><table><thead><tr><th>Diária</th><th>Vencimento</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Situação</th><th>Recibos</th></tr></thead><tbody>${summary.rows.map(row=>{const receipts=(row.payments??[]).map((payment,index)=>`<button data-daily-receipt-installment="${esc(row.installmentId)}" data-daily-receipt-payment="${esc(payment.id)}">Recibo ${index+1}</button>`).join(' ');const status=row.paymentConflicts?.length?`${statusLabel[row.status]||esc(row.status)} · conflito sync`:statusLabel[row.status]||esc(row.status);return`<tr><td>${row.sequence}</td><td>${date(row.dueAt)}</td><td>${money(row.amount)}</td><td>${money(row.paidAmount)}</td><td>${money(row.openAmount)}</td><td><span class="badge">${status}</span></td><td>${receipts||'-'}</td></tr>`}).join('')||'<tr><td colspan="7" class="empty">Nenhuma diária gerada.</td></tr>'}</tbody></table></div></section><div class="modal-actions"><button type="button" data-close>Fechar</button></div>`,()=>{
-    document.querySelector('#receive-next-daily')?.addEventListener('click',()=>{closeModal();showDailyPayment(ctx,rentalId);});
-    document.querySelector('#receive-multiple-daily')?.addEventListener('click',()=>{closeModal();showDailyBulkPayment(ctx,rentalId);});
-    document.querySelectorAll('[data-daily-receipt-payment]').forEach(button=>button.addEventListener('click',()=>{try{pdf(`recibo-diaria-${button.dataset.dailyReceiptPayment}.pdf`,dailyPaymentReceiptPdf(snapshot,button.dataset.dailyReceiptInstallment,button.dataset.dailyReceiptPayment));}catch(error){toast(error.message)}}));
-  });
-}
-
-function showDailyPayment(ctx,rentalId){
-  const {snapshot,sessionUser,save}=ctx;
-  if(!can(sessionUser,'billing.write')){toast('Sem permissão para registrar recebimentos.');return;}
-  const item=nextDailyInstallment(snapshot,rentalId);
-  if(!item){toast('Todas as diárias estão quitadas.');return;}
-  const balance=Math.max(0,Number(item.amount||0)-Number(item.paidAmount||0));
-  modal('Receber diária',`<form id="daily-payment-form" class="form-grid"><label>Diária<input value="${item.sequence} · ${esc(date(item.dueAt))}" disabled></label><label>Saldo<input value="${balance.toFixed(2)}" disabled></label><label>Valor<input name="amount" type="number" min="0.01" max="${balance}" step="0.01" value="${balance.toFixed(2)}" required></label><label>Forma<select name="method"><option>PIX</option><option>Dinheiro</option><option>Crédito</option><option>Débito</option><option>Boleto</option></select></label><div class="full modal-actions"><button type="button" data-close>Cancelar</button><button class="primary">Confirmar recebimento</button></div></form>`,()=>{const form=document.querySelector('#daily-payment-form');form.onsubmit=e=>{e.preventDefault();const fd=Object.fromEntries(new FormData(form));try{save(recordNextDailyPayment(snapshot,rentalId,{amount:Number(fd.amount),method:fd.method},sessionUser.id));closeModal();toast('Diária atualizada.');}catch(err){toast(err.message)}};});
-}
-
-function showDailyBulkPayment(ctx,rentalId){
-  const {snapshot,sessionUser,save}=ctx;
-  if(!can(sessionUser,'billing.write')){toast('Sem permissão para registrar recebimentos.');return;}
-  const summary=dailyBillingSummary(snapshot,rentalId,new Date().toISOString());
-  if(summary.openAmount<=0){toast('Todas as diárias estão quitadas.');return;}
-  modal('Receber várias diárias',`<form id="daily-bulk-payment-form" class="form-grid"><label>Saldo total<input value="${summary.openAmount.toFixed(2)}" disabled></label><label>Valor recebido<input name="amount" type="number" min="0.01" max="${summary.openAmount}" step="0.01" required></label><label>Forma<select name="method"><option>PIX</option><option>Dinheiro</option><option>Crédito</option><option>Débito</option><option>Boleto</option></select></label><div class="full"><small>O valor será distribuído automaticamente nas diárias pendentes, da mais antiga para a mais recente. Se não completar a última diária alcançada, ela ficará parcial.</small></div><div class="full modal-actions"><button type="button" data-close>Cancelar</button><button class="primary">Confirmar recebimento</button></div></form>`,()=>{const form=document.querySelector('#daily-bulk-payment-form');form.onsubmit=e=>{e.preventDefault();const fd=Object.fromEntries(new FormData(form));try{save(recordDailyPaymentAmount(snapshot,rentalId,{amount:Number(fd.amount),method:fd.method},sessionUser.id));closeModal();toast('Recebimento distribuído nas diárias.');}catch(err){toast(err.message)}};});
 }
 
 function showContinuousClose(ctx,rentalId){
