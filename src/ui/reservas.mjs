@@ -1,4 +1,5 @@
 import { getFinancialSummary, moveRental } from '../domain/rental.mjs';
+import { createInspection } from '../domain/inspection.mjs';
 import { closeContinuousDailyRental, createRentalWithBilling, dailyBillingSummary, nextDailyInstallment, recordDailyPaymentAmount, recordNextDailyPayment } from '../domain/daily-billing.mjs';
 import { dailyPaymentReceiptPdf } from '../domain/documents.mjs';
 import { can } from '../domain/auth.mjs';
@@ -17,7 +18,8 @@ export function renderReservas(view, ctx) {
   <section class="panel"><div class="panel-title"><h2>Agenda</h2><span>Disponibilidade calculada por período, não por status global.</span></div><div class="agenda">${renderAgenda(rows,snapshot)}</div></section>
   <section class="panel"><div class="panel-title"><h2>Locações</h2></div><div class="table-wrap"><table><thead><tr><th>Locação</th><th>Cliente</th><th>Veículo</th><th>Retirada</th><th>Devolução</th><th>Status</th><th>Total</th><th>Ações</th></tr></thead><tbody>${rows.map(r=>rentalRow(r,snapshot,sessionUser)).join('')||'<tr><td colspan="8" class="empty">Nenhuma locação cadastrada.</td></tr>'}</tbody></table></div></section>`;
   view.querySelector('#new-rental')?.addEventListener('click',()=>showRentalForm(ctx));
-  view.querySelectorAll('[data-status]').forEach(b=>b.onclick=()=>{try{save(moveRental(snapshot,b.dataset.id,b.dataset.status,sessionUser.id));toast('Status atualizado.');}catch(err){toast(err.message)}});
+  view.querySelectorAll('[data-rental-inspection]').forEach(b=>b.onclick=()=>openRentalInspection(ctx,b.dataset.rentalInspection,b.dataset.kind));
+  view.querySelectorAll('[data-rental-finish]').forEach(b=>b.onclick=()=>finishRentalTask(ctx,b.dataset.rentalFinish,b.dataset.target));
   view.querySelectorAll('[data-close-continuous]').forEach(b=>b.onclick=()=>showContinuousClose(ctx,b.dataset.closeContinuous));
   view.querySelectorAll('[data-contract]').forEach(b=>b.onclick=()=>printContract(b.dataset.contract,snapshot));
   view.querySelectorAll('[data-daily-control]').forEach(b=>b.onclick=()=>showDailyControl(ctx,b.dataset.dailyControl));
@@ -29,13 +31,44 @@ function renderAgenda(rows,snapshot) {
 }
 
 function rentalRow(r,snapshot,sessionUser) {
-  const v=snapshot.vehicles.find(x=>x.id===r.vehicleId), c=snapshot.customers.find(x=>x.id===r.customerId);
-  const next={reserva:'retirada',retirada:'em_uso',em_uso:'devolucao'}[r.status];
+  const v=snapshot.vehicles.find(x=>x.id===r.vehicleId),c=snapshot.customers.find(x=>x.id===r.customerId),writable=can(sessionUser,'rental.write');
+  const checkout=snapshot.inspections.find(item=>item.rentalId===r.id&&item.kind==='checkout'),returned=snapshot.inspections.find(item=>item.rentalId===r.id&&item.kind==='return');
   const continuousOpen=r.periodMode==='continuous'&&!r.continuousClosedAt;
-  const advance=next&&!(continuousOpen&&r.status==='em_uso')&&can(sessionUser,'rental.write')?`<button data-status="${next}" data-id="${r.id}">Avançar</button>`:'';
-  const close=continuousOpen&&r.status==='em_uso'&&can(sessionUser,'rental.write')?`<button data-close-continuous="${esc(r.id)}" class="primary">Encerrar diária</button>`:'';
-  const daily=r.billingMode==='daily'&&can(sessionUser,'billing.read')?`<button data-daily-control="${esc(r.id)}">Diárias</button>`:'';
-  return `<tr><td>${esc(r.id)}</td><td>${esc(c?.name||'-')}</td><td>${esc(v?.model||'-')}<small>${esc(v?.plate||'')}</small></td><td>${date(r.pickupAt)}</td><td>${r.returnAt?date(r.returnAt):'<span class="badge">Contínua</span>'}</td><td><span class="badge">${esc(rentalStatusLabel(r.status))}</span></td><td>${money(r.total)}</td><td class="actions">${advance}${close}${daily}<button data-contract="${r.id}">Contrato</button></td></tr>`;
+  let operation='';
+  if(writable&&['reserva','retirada'].includes(r.status)){
+    if(!checkout||checkout.status==='draft')operation=`<button class="primary" data-rental-inspection="${esc(r.id)}" data-kind="checkout">${checkout?'Continuar retirada':'Fazer retirada'}</button>`;
+    else operation=`<button class="primary" data-rental-finish="${esc(r.id)}" data-target="em_uso">Concluir retirada</button>`;
+  }else if(writable&&r.status==='em_uso'){
+    if(!returned||returned.status==='draft')operation=`<button class="primary" data-rental-inspection="${esc(r.id)}" data-kind="return">${returned?'Continuar devolução':'Registrar devolução'}</button>`;
+    else if(continuousOpen)operation=`<button class="primary" data-close-continuous="${esc(r.id)}">Concluir devolução</button>`;
+    else operation=`<button class="primary" data-rental-finish="${esc(r.id)}" data-target="devolucao">Concluir devolução</button>`;
+  }
+  const daily=r.billingMode==='daily'&&can(sessionUser,'billing.read')?`<button data-daily-control="${esc(r.id)}">Receber pagamento</button>`:'';
+  return `<tr><td>${esc(r.id)}</td><td>${esc(c?.name||'-')}</td><td>${esc(v?.model||'-')}<small>${esc(v?.plate||'')}</small></td><td>${date(r.pickupAt)}</td><td>${r.returnAt?date(r.returnAt):'<span class="badge">Contínua</span>'}</td><td><span class="badge">${esc(rentalStatusLabel(r.status))}</span></td><td>${money(r.total)}</td><td class="actions">${operation}${daily}<button data-contract="${r.id}">Documentos</button></td></tr>`;
+}
+
+function openRentalInspection(ctx,rentalId,kind){
+  const {snapshot,sessionUser,save}=ctx;
+  try{
+    const existing=snapshot.inspections.find(item=>item.rentalId===rentalId&&item.kind===kind);
+    const next=existing?snapshot:createInspection(snapshot,{rentalId,kind},sessionUser.id);
+    if(!existing)save(next);
+    const id=(existing??next.inspections.find(item=>item.rentalId===rentalId&&item.kind===kind))?.id;
+    setTimeout(()=>{document.querySelector('[data-nav="vistorias"]')?.click();setTimeout(()=>document.querySelector(`[data-edit-inspection="${id}"]`)?.click(),0);},0);
+  }catch(error){toast(error.message);}
+}
+
+function finishRentalTask(ctx,rentalId,target){
+  const {snapshot,sessionUser,save}=ctx;
+  try{
+    let working=structuredClone(snapshot),rental=working.rentals.find(item=>item.id===rentalId);
+    if(!rental)throw new Error('Locação não encontrada.');
+    if(target==='em_uso'&&rental.status==='reserva')working=moveRental(working,rentalId,'retirada',sessionUser.id);
+    rental=working.rentals.find(item=>item.id===rentalId);
+    if(target==='em_uso'&&rental.status==='retirada')working=moveRental(working,rentalId,'em_uso',sessionUser.id);
+    else if(target==='devolucao'&&rental.status==='em_uso')working=moveRental(working,rentalId,'devolucao',sessionUser.id);
+    save(working);toast(target==='devolucao'?'Devolução concluída.':'Retirada concluída.');
+  }catch(error){toast(error.message);}
 }
 
 function showDailyControl(ctx,rentalId){
