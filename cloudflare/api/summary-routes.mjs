@@ -9,14 +9,16 @@ function round(value){return Math.round((Number(value||0)+Number.EPSILON)*100)/1
 function integer(value,fallback,{min=0,max=500}={}){const n=Number(value);return Number.isInteger(n)&&n>=min?Math.min(n,max):fallback;}
 function authOk(auth,permission){return Boolean(auth?.installationId&&auth?.userId&&canCloud(auth,permission));}
 
-async function overviewSummary(db,installationId){
-  const now=new Date().toISOString(),[fleet,rentals,finance,performanceRows]=await Promise.all([
+async function overviewSummary(db,installationId,auth){
+  const now=new Date().toISOString(),[fleet,rentals,finance,performanceRows,nextRows]=await Promise.all([
     db.prepare(`SELECT COUNT(*) AS total,
       SUM(CASE WHEN availability='disponivel' THEN 1 ELSE 0 END) AS available,
       SUM(CASE WHEN availability='manutencao' THEN 1 ELSE 0 END) AS maintenance
       FROM vehicles WHERE installation_id=? AND deleted_at IS NULL`).bind(installationId).first(),
     db.prepare(`SELECT COUNT(*) AS openRentals,
       SUM(CASE WHEN status IN ('retirada','em_uso') THEN 1 ELSE 0 END) AS activeRentals,
+      SUM(CASE WHEN status IN ('reserva','retirada') THEN 1 ELSE 0 END) AS pickupPending,
+      SUM(CASE WHEN status='em_uso' THEN 1 ELSE 0 END) AS returnPending,
       SUM(CASE WHEN return_at IS NOT NULL AND return_at < ? AND status!='devolucao' THEN 1 ELSE 0 END) AS overdueRentals
       FROM rentals WHERE installation_id=? AND deleted_at IS NULL AND status!='devolucao'`).bind(now,installationId).first(),
     db.prepare(`SELECT
@@ -40,15 +42,31 @@ async function overviewSummary(db,installationId){
       FROM vehicles v LEFT JOIN rental_counts rc ON rc.vehicle_id=v.id LEFT JOIN revenue rev ON rev.vehicle_id=v.id
       LEFT JOIN expense exp ON exp.vehicle_id=v.id LEFT JOIN maintenance_cost mc ON mc.vehicle_id=v.id
       WHERE v.installation_id=? AND v.deleted_at IS NULL ORDER BY margin DESC,v.model LIMIT 20`)
-      .bind(installationId,installationId,installationId,installationId,installationId).all()
+      .bind(installationId,installationId,installationId,installationId,installationId).all(),
+    db.prepare(`SELECT r.id AS rentalId,r.status,r.pickup_at AS pickupAt,r.return_at AS returnAt,r.period_mode AS periodMode,
+      r.customer_id AS customerId,r.vehicle_id AS vehicleId,c.name AS customerName,v.model AS vehicleModel,v.plate AS vehiclePlate
+      FROM rentals r
+      LEFT JOIN customers c ON c.installation_id=r.installation_id AND c.id=r.customer_id AND c.deleted_at IS NULL
+      LEFT JOIN vehicles v ON v.installation_id=r.installation_id AND v.id=r.vehicle_id AND v.deleted_at IS NULL
+      WHERE r.installation_id=? AND r.deleted_at IS NULL AND r.status!='devolucao'
+      ORDER BY CASE WHEN r.status IN ('reserva','retirada') THEN COALESCE(r.pickup_at,'') ELSE COALESCE(r.return_at,'') END,r.id
+      LIMIT 8`).bind(installationId).all()
   ]);
   const fleetTotal=Number(fleet?.total)||0,activeRentals=Number(rentals?.activeRentals)||0,grossRevenue=round(finance?.grossRevenue),received=round(finance?.received),expensesPaid=round(finance?.expensesPaid),ticketCount=Number(finance?.ticketCount)||0;
   return{
     fleetTotal,availableVehicles:Number(fleet?.available)||0,maintenanceVehicles:Number(fleet?.maintenance)||0,
     openRentals:Number(rentals?.openRentals)||0,activeRentals,overdueRentals:Number(rentals?.overdueRentals)||0,
+    pickupPending:Number(rentals?.pickupPending)||0,returnPending:Number(rentals?.returnPending)||0,
     occupancyRate:fleetTotal?Math.round(activeRentals/fleetTotal*100):0,grossRevenue,received,
     openAmount:round(Math.max(0,grossRevenue-received)),expensesPaid,netCash:round(received-expensesPaid),
     averageTicket:ticketCount?round(grossRevenue/ticketCount):0,
+    nextActions:(nextRows?.results??[]).map(row=>({
+      rentalId:String(row.rentalId),status:String(row.status),pickupAt:row.pickupAt??null,returnAt:row.returnAt??null,periodMode:row.periodMode??'fixed',
+      customerId:row.customerId??null,vehicleId:row.vehicleId??null,
+      customerName:canCloud(auth,'customer.read')?(row.customerName??null):null,
+      vehicleModel:canCloud(auth,'vehicle.read')?(row.vehicleModel??null):null,
+      vehiclePlate:canCloud(auth,'vehicle.read')?(row.vehiclePlate??null):null
+    })),
     vehiclePerformance:(performanceRows?.results??[]).map(row=>({...row,rentalCount:Number(row.rentalCount)||0,revenue:round(row.revenue),expenses:round(row.expenses),margin:round(row.margin)}))
   };
 }
@@ -96,7 +114,7 @@ export async function handleSummaryRoute(request,env,_ctx,{auth=null}={}){
   if(!auth?.installationId||!auth?.userId)return json({ok:false,error:'unauthorized'},401);
   if(!env?.DB?.prepare)return json({ok:false,error:'database_unavailable'},503);
   try{
-    if(p===`${PREFIX}/overview`){if(!authOk(auth,'rental.read'))return json({ok:false,error:'forbidden'},403);return json({ok:true,summary:await overviewSummary(env.DB,auth.installationId)});}
+    if(p===`${PREFIX}/overview`){if(!authOk(auth,'rental.read'))return json({ok:false,error:'forbidden'},403);return json({ok:true,summary:await overviewSummary(env.DB,auth.installationId,auth)});}
     if(p===`${PREFIX}/finance`){if(!authOk(auth,'finance.read'))return json({ok:false,error:'forbidden'},403);return json({ok:true,summary:await financeSummary(env.DB,auth.installationId)});}
     if(p===`${PREFIX}/finance/receivables`){if(!authOk(auth,'finance.read'))return json({ok:false,error:'forbidden'},403);return json({ok:true,...await financeReceivables(request,env.DB,auth.installationId)});}
     return json({ok:false,error:'not_found'},404);
