@@ -16,12 +16,14 @@ function formHtml(current={}){const license=current.driverLicense??{};return `<f
   <label>Nome<input name="name" value="${esc(current.name??'')}" required></label>
   <label>CPF/CNPJ<input name="document" value="${esc(current.document??'')}"></label>
   <label>Telefone<input name="phone" inputmode="tel" value="${esc(current.phone??'')}"></label>
-  <label>E-mail<input name="email" type="email" value="${esc(current.email??'')}"></label>
-  <label class="full">Endereço<input name="address" value="${esc(current.address??'')}"></label>
-  <label>CNH<input name="licenseNumber" value="${esc(license.number??'')}"></label>
-  <label>Categoria CNH<input name="licenseCategory" value="${esc(license.category??'')}"></label>
-  <label>Validade CNH<input name="licenseExpiry" inputmode="numeric" placeholder="dd/mm/aaaa" value="${esc(brDateValue(license.expiry))}"></label>
-  <label>Status<select name="active"><option value="1" ${current.active===0?'':'selected'}>Ativo</option><option value="0" ${current.active===0?'selected':''}>Inativo</option></select></label>
+  <details class="form-advanced full"><summary>+ Mais informações</summary><div class="form-grid">
+    <label>E-mail<input name="email" type="email" value="${esc(current.email??'')}"></label>
+    <label class="full">Endereço<input name="address" value="${esc(current.address??'')}"></label>
+    <label>CNH<input name="licenseNumber" value="${esc(license.number??'')}"></label>
+    <label>Categoria CNH<input name="licenseCategory" value="${esc(license.category??'')}"></label>
+    <label>Validade CNH<input name="licenseExpiry" inputmode="numeric" placeholder="dd/mm/aaaa" value="${esc(brDateValue(license.expiry))}"></label>
+    <label>Status<select name="active"><option value="1" ${current.active===0?'':'selected'}>Ativo</option><option value="0" ${current.active===0?'selected':''}>Inativo</option></select></label>
+  </div></details>
   <div class="full actions"><button class="primary">${current.id?'Salvar alterações':'Salvar cliente'}</button>${current.id?'<button type="button" class="secondary" data-customer-cancel>Cancelar</button>':''}</div>
 </form>`;}
 
