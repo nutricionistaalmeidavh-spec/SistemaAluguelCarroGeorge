@@ -26,7 +26,7 @@ const RESOURCE_PERMISSIONS=Object.freeze({
   contractTemplates:'contracts.read',issuedContracts:'contracts.read',attachments:'documents.read',alertState:'alerts.read'
 });
 export const VIEW_RESOURCES=Object.freeze({
-  overview:Object.freeze([]),
+  overview:Object.freeze(['customers','vehicles','rentals']),
   customers:Object.freeze(['customers']),
   vehicles:Object.freeze(['vehicles']),
   rentals:Object.freeze(['customers','vehicles','rentals','inspections']),
