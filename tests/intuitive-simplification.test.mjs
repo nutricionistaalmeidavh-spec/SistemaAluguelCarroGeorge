@@ -101,6 +101,19 @@ test('fluxos secundários não usam prompt sequencial na PWA',async()=>{
   assert.match(delinquency,/modal-overlay/);
 });
 
+
+test('desktop usa retirada e devolução como tarefas, sem botão genérico Avançar',async()=>{
+  const rentals=await source('src/ui/reservas.mjs');
+  assert.match(rentals,/data-rental-inspection/);
+  assert.match(rentals,/Fazer retirada/);
+  assert.match(rentals,/Registrar devolução/);
+  assert.doesNotMatch(rentals,/data-status=/);
+  assert.doesNotMatch(rentals,/>Avançar<\/button>/);
+  const inspections=await source('src/ui/p1.mjs');
+  assert.match(inspections,/moveRental/);
+  assert.match(inspections,/closeContinuousDailyRental/);
+});
+
 test('desktop também reduz navegação principal e agrupa o restante em Mais',async()=>{
   const app=await source('src/app.mjs');
   assert.match(app,/const primaryNav=/);
