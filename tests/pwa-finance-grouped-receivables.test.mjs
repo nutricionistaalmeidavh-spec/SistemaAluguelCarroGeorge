@@ -33,7 +33,7 @@ test('financeiro agrupa recebíveis da mesma locação em um único grupo',()=>{
   assert.equal(groups[0].nextDueAt,'2027-04-26');
 });
 
-test('financeiro renderiza um card e uma única ação Dar baixa por locação',()=>{
+test('financeiro renderiza um card e uma única ação Receber pagamento por locação',()=>{
   const html=financeHtml(snapshot(),admin);
   assert.equal((html.match(/data-receivable-rental="LOC-1"/g)||[]).length,1);
   assert.equal((html.match(/data-payment-rental="LOC-1"/g)||[]).length,1);
