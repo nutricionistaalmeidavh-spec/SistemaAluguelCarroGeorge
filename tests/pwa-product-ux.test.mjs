@@ -28,7 +28,10 @@ test('P1: clientes e frota priorizam lista, busca e criação sob demanda',async
   assert.match(vehicles,/cloud-create-panel/);
   assert.match(vehicles,/data-vehicle-search/);
   assert.match(vehicles,/\+ Novo veículo/);
-  assert.match(vehicles,/<legend>Identificação<\/legend>/);
+  assert.match(vehicles,/<legend>Essencial<\/legend>/);
+  assert.match(customers,/form-advanced/);
+  assert.match(vehicles,/form-advanced/);
+  assert.match(vehicles,/type="hidden" name="availability"/);
   assert.match(vehicles,/<legend>Documentos<\/legend>/);
 });
 
