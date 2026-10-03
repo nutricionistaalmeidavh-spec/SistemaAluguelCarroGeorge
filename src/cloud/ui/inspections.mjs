@@ -8,7 +8,7 @@ function eligibleRental(r,kind){
   return !(r.periodMode==='continuous'&&!r.continuousClosedAt&&r.status==='em_uso');
 }
 function optionRentals(snapshot,kind,selected=''){
-  return snapshot.rentals.filter(r=>eligibleRental(r,kind)).map(r=>{
+  return snapshot.rentals.filter(r=>eligibleRental(r,kind)||String(r.id)===String(selected)).map(r=>{
     const v=snapshot.vehicles.find(x=>x.id===r.vehicleId),c=snapshot.customers.find(x=>x.id===r.customerId);
     return `<option value="${esc(r.id)}" ${String(r.id)===String(selected)?'selected':''}>${esc(v?.plate||r.vehicleId)} · ${esc(c?.name||r.customerId)}</option>`;
   }).join('');
@@ -31,7 +31,7 @@ export function bindInspections(root,{snapshot,user,actions,state}){
       const fd=new FormData(form),inspectionId=`VIS-${crypto.randomUUID()}`,items=DEFAULT_INSPECTION_ITEMS.map(([key,label])=>({key,label,done:Boolean(form.elements[`check-${key}`].checked),evidence:key==='photos'?`${files.length} foto(s)`:null}));
       if(items.some(item=>!item.done))throw new Error('Conclua todos os itens do checklist.');
       const rentalId=String(fd.get('rentalId')),inspectionKind=String(fd.get('kind')),sourceRental=snapshot.rentals.find(item=>String(item.id)===rentalId);
-      if(inspectionKind==='return'&&sourceRental?.periodMode==='continuous'&&!sourceRental.continuousClosedAt)throw new Error('Encerre a locação contínua antes de registrar a devolução.');
+      if(inspectionKind==='return'&&sourceRental?.periodMode==='continuous'&&!sourceRental.continuousClosedAt&&!inspectionPreset?.allowPendingContinuousClose)throw new Error('Encerre a locação contínua antes de registrar a devolução.');
       const payload={id:inspectionId,rentalId,kind:inspectionKind,mileage:Number(fd.get('mileage')),fuelLevel:String(fd.get('fuelLevel')),notes:String(fd.get('notes')||''),damages:String(fd.get('damages')||'').split('\n').map(x=>x.trim()).filter(Boolean),items};
       await actions.queue('inspection.create',payload,'VIS');
       for(const file of files)await actions.uploadFile(file,'inspection',inspectionId);
