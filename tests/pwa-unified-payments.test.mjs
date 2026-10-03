@@ -54,16 +54,16 @@ test('card do financeiro decide sozinho entre parcela e recebimento direto',()=>
   assert.deepEqual(paymentTargetForLedger(snap,snap.ledger[2]),{kind:'rental.payment',id:'LOC-LEG',balance:160,rentalId:'LOC-LEG'});
 });
 
-test('Locações, Cobranças e Financeiro expõem Dar baixa sem formulário separado Receber diária',()=>{
+test('Locações, Cobranças e Financeiro expõem Receber pagamento com fluxo único',()=>{
   const snap=snapshot();
   const rentals=rentalsHtml(snap,admin);
   const billing=billingHtml(snap,admin);
   const finance=financeHtml(snap,admin);
-  assert.match(rentals,/Dar baixa/);
+  assert.match(rentals,/Receber pagamento/);
   assert.match(rentals,/data-payment-rental="LOC-D"/);
   assert.match(rentals,/data-payment-rental="LOC-T"/);
-  assert.match(billing,/Dar baixa/);
-  assert.match(finance,/Dar baixa/);
+  assert.match(billing,/Receber pagamento/);
+  assert.match(finance,/Receber pagamento/);
   assert.doesNotMatch(finance,/Receber diária/);
   assert.doesNotMatch(finance,/cloud-payment-form/);
 });
