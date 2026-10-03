@@ -112,9 +112,8 @@ input[placeholder="dd/mm/aaaa"]::placeholder,input[placeholder="dd/mm/aaaa hh:mm
 .desktop-nav-more[open]>summary::after{content:'–'}
 .desktop-nav-more-list{display:grid;gap:5px;margin-top:4px}
 .form-advanced{border:1px solid #e4e7eb;border-radius:10px;background:#fafbfc;padding:0}
-.form-advanced>summary{cursor:pointer;list-style:none;padding:12px 14px;color:#59616c;font-weight:800}
-.form-advanced>summary::-webkit-details-marker{display:none}
-.form-advanced[open]>summary{border-bottom:1px solid #e4e7eb}
+.form-advanced-toggle{width:100%;text-align:left;border:0;border-radius:10px;background:transparent;padding:12px 14px;color:#59616c;font-weight:800}
+.form-advanced-toggle:hover{background:#f4f6f8}
 .form-advanced>.form-grid,.form-advanced>label{padding:14px}
 .finance-subnav{display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 16px}
 @media(max-width:700px){.finance-subnav{display:grid;grid-template-columns:1fr 1fr}.finance-subnav button{width:100%}.form-advanced>.form-grid{grid-template-columns:1fr}}
