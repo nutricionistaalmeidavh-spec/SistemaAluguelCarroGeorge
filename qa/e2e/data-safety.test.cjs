@@ -11,8 +11,9 @@ async function login(page,user='admin'){
  await page.getByRole('button',{name:'Entrar',exact:true}).click();
  await expect(page.locator('.session')).toBeVisible();
 }
+async function openModule(page,id){const target=page.locator(`[data-nav="${id}"]`);if(!(await target.isVisible()))await page.locator('.desktop-nav-more>summary').click();await target.click();}
 async function company(page,name){
- await page.locator('[data-nav="backup"]').click();
+ await openModule(page,'backup');
  await page.locator('#settings-form [name="companyName"]').fill(name);
  await page.locator('#settings-form button').click();
  await expect(page.locator('.toast').filter({hasText:'Configurações salvas.'}).last()).toBeVisible();
@@ -30,7 +31,7 @@ test('backup: export, alter, restore e reload preservam dados sem depender de LA
  try{
   const p=ctx.page;await login(p);await company(p,'Empresa do backup');
   assert.equal(await p.evaluate(()=>typeof window.locadoraDesktop.getSyncInfo),'undefined','bridge LAN deve estar removida');
-  await p.locator('[data-nav="backup"]').click();
+  await openModule(p,'backup');
   const backupPath=path.join(ctx.dir,'backup-exportado.json');
   await ctx.app.evaluate(({session},file)=>{
    globalThis.qaDownload=new Promise((resolve,reject)=>{
@@ -47,13 +48,13 @@ test('backup: export, alter, restore e reload preservam dados sem depender de LA
   const envelope=JSON.parse(await fs.readFile(backupPath,'utf8'));
   assert.equal(envelope.snapshot.settings.companyName,'Empresa do backup');
   await company(p,'Empresa alterada');
-  await p.locator('[data-nav="backup"]').click();
+  await openModule(p,'backup');
   await p.locator('#backup-file').setInputFiles(backupPath);
   await expect(p.locator('.toast').filter({hasText:'Backup restaurado.'})).toBeVisible();
   await expect(p.locator('#settings-form [name="companyName"]')).toHaveValue('Empresa do backup');
   await waitLocalCompany(p,'Empresa do backup');
   await p.reload();await login(p);
-  await p.locator('[data-nav="backup"]').click();
+  await openModule(p,'backup');
   await expect(p.locator('#settings-form [name="companyName"]')).toHaveValue('Empresa do backup');
   envelope.snapshot.settings.companyName='Backup adulterado';
   await p.locator('#backup-file').setInputFiles({name:'corrompido.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(envelope))});
@@ -77,9 +78,9 @@ test('permissions: inspector and attendant respect read, write and restore restr
   await expect(p.locator('#new-vehicle')).toHaveCount(0);
   for(const id of ['financeiro','backup','auditoria','clientes','cobrancas'])await expect(p.locator(`[data-nav="${id}"]`)).toHaveCount(0);
   await p.locator('[data-nav="reservas"]').click();await expect(p.locator('#new-rental')).toHaveCount(0);
-  await p.locator('[data-nav="vistorias"]').click();await expect(p.locator('#view h1')).toHaveText('Vistorias');
+  await openModule(p,'vistorias');await expect(p.locator('#view h1')).toHaveText('Vistorias');
   await p.locator('#logout').click();await login(p,'atendente');
-  await p.locator('[data-nav="backup"]').click();
+  await openModule(p,'backup');
   await expect(p.locator('#backup-create')).toBeVisible();
   await expect(p.locator('#backup-file')).toHaveCount(0);
   await expect(p.locator('#settings-form')).toHaveCount(0);
