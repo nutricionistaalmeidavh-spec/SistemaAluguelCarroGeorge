@@ -5,36 +5,36 @@ import { mobileNavigationGroups,mobileNavHtml,mobileLabelFor,navHtml } from '../
 
 const admin={id:'USR',role:'admin',active:true};
 
-test('central mobile segue a ordem operacional aprovada',()=>{
+test('menu mobile prioriza trabalho principal e deixa capacidades avançadas em Mais',()=>{
   const groups=mobileNavigationGroups(admin);
   assert.deepEqual(groups.map(group=>group.items.map(item=>item.id)),[
-    ['overview','rentals','customers','billing','inspections','finance'],
-    ['finance','delinquency','vehicles','maintenance'],
-    ['contracts','documents','alerts','administration']
+    ['overview','rentals','customers','vehicles','finance'],
+    ['inspections','billing','delinquency','maintenance','contracts','documents','alerts','administration']
   ]);
-  assert.equal(groups[0].items.at(-1).mobileLabel,'Dar baixa');
+  const ids=groups.flatMap(group=>group.items.map(item=>item.id));
+  assert.equal(new Set(ids).size,ids.length,'nenhum módulo pode aparecer em dois grupos');
   assert.equal(mobileLabelFor('inspections','Vistorias'),'Vistoria');
-  assert.equal(mobileLabelFor('administration','Administração'),'Configurações');
+  assert.equal(mobileLabelFor('administration','Configurações'),'Configurações');
 });
 
-test('central mobile mantém data-cloud-nav e atalho de Dar baixa',()=>{
-  const html=mobileNavHtml(admin,'rentals');
-  for(const id of ['overview','rentals','customers','billing','inspections','finance','delinquency','vehicles','maintenance','contracts','documents','alerts','administration']){
+test('menu mobile mantém todas as capacidades sem atalho duplicado de pagamento',()=>{
+  const html=mobileNavHtml(admin,'billing');
+  for(const id of ['overview','rentals','customers','vehicles','finance','inspections','billing','delinquency','maintenance','contracts','documents','alerts','administration']){
     assert.match(html,new RegExp(`data-cloud-nav="${id}"`));
   }
-  assert.match(html,/data-cloud-nav="finance" data-cloud-shortcut="payment"[^>]*>\s*<span>Dar baixa<\/span>/);
-  assert.match(html,/data-cloud-nav="finance"(?! data-cloud-shortcut="payment")[^>]*>\s*<span>Financeiro<\/span>/);
+  assert.doesNotMatch(html,/data-cloud-shortcut="payment"/);
+  assert.doesNotMatch(html,/>Dar baixa<\/span>/);
   assert.match(html,/Configurações/);
   assert.match(html,/Vistoria/);
   assert.match(html,/aria-current="page"/);
 });
 
-test('nav mobile usa botão único e central de módulos em vez de scroll horizontal',async()=>{
+test('nav mobile usa botão único e menu em vez de scroll horizontal',async()=>{
   const html=navHtml(admin,'rentals');
   const styles=await readFile(new URL('../styles-payments.css',import.meta.url),'utf8');
   assert.match(html,/id="cloud-mobile-menu"/);
   assert.match(html,/data-test="mobile-module-central"/);
-  assert.match(html,/Central de módulos/);
+  assert.match(html,/<h2>Menu<\/h2>/);
   assert.match(html,/>Locações</);
   assert.match(styles,/\.mobile-appbar\{/);
   assert.match(styles,/\.mobile-module-grid\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
