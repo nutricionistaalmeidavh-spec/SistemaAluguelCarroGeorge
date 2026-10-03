@@ -65,7 +65,7 @@ export const MUTATION_REFRESH=Object.freeze({
 });
 export function resourcesForMutation(kind,user){const allowed=new Set(allowedResources(user));return (MUTATION_REFRESH[String(kind)]??[]).filter(resource=>allowed.has(resource));}
 const DEVICE_KEY='cloud:device-id',CLOUD_INSTALLATION_ID='LOCADORA-GEORGE',GEORGE_LOGIN_EMAIL='georgedaut.adm@gmail.com';
-const uiState={view:'overview',editingCustomerId:null,editingVehicleId:null,inspectionPreset:null,rentalDocumentId:null,financeReceivables:{limit:30,offset:0,q:''}};
+const uiState={view:'overview',editingCustomerId:null,editingVehicleId:null,inspectionPreset:null,maintenancePreset:null,rentalDocumentId:null,financeReceivables:{limit:30,offset:0,q:''}};
 let flash='',viewRefreshSequence=0;
 
 function operationId(prefix='OP'){return `${prefix}-${crypto.randomUUID()}`;}
@@ -158,7 +158,7 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
   const firstHydration=state.missing.length>0&&navigator.onLine&&safeView!=='administration';
   viewNode.innerHTML=firstHydration?'<div class="panel" data-test="cloud-view-loading"><strong>Carregando dados desta área…</strong><p class="hint">A navegação permanece disponível enquanto os dados são atualizados.</p></div>':module?.html(snapshot,user,{...uiState,pagination:state.pagination})??'<div class="panel">Tela indisponível.</div>';
   flash='';
-  const rerender=target=>{const next=target??safeView;if(next!=='inspections')uiState.inspectionPreset=null;if(next!=='documents')uiState.rentalDocumentId=null;return renderCloudHome(app,repository,runtime,session,next);};
+  const rerender=target=>{const next=target??safeView;if(next!=='inspections')uiState.inspectionPreset=null;if(next!=='maintenance')uiState.maintenancePreset=null;if(next!=='documents')uiState.rentalDocumentId=null;return renderCloudHome(app,repository,runtime,session,next);};
   if(firstHydration){
     for(const button of nav.querySelectorAll('[data-cloud-nav]'))button.onclick=()=>void rerender(button.dataset.cloudNav);
     shell.querySelector('#cloud-logout').onclick=async()=>{viewRefreshSequence++;try{await repository.api.logout();}catch{}await repository.clearSession();renderLogin(app,repository,runtime);};
@@ -176,6 +176,7 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
     async flush(){return flushPending(repository,runtime);},async refresh(target=safeView){return renderCloudHome(app,repository,runtime,session,target,{revalidate:false});},
     async openInspection(rentalId,kind='pickup'){uiState.inspectionPreset={rentalId:String(rentalId),kind:kind==='return'?'return':'pickup'};return renderCloudHome(app,repository,runtime,session,'inspections',{revalidate:false});},
     async openRentalDocuments(rentalId){uiState.rentalDocumentId=String(rentalId);return renderCloudHome(app,repository,runtime,session,'documents',{revalidate:false});},
+    async openVehicleMaintenance(vehicleId){uiState.maintenancePreset={vehicleId:String(vehicleId)};return renderCloudHome(app,repository,runtime,session,'maintenance',{revalidate:false});},
     async openFinanceSubview(target){const view=target==='billing'?'billing':'delinquency';return renderCloudHome(app,repository,runtime,session,view,{revalidate:false});},
     async loadResourcePage(resource,options={}){const current=state.pagination?.[resource]??{},next={limit:Number(options.limit??current.limit)||undefined,offset:Number(options.offset??current.offset)||0,q:options.q??current.q??'',filters:options.filters??current.filters??{},from:options.from??current.from??'',to:options.to??current.to??''};await repository.page(resource,next);return renderCloudHome(app,repository,runtime,session,safeView,{revalidate:false});},
     async loadFinanceReceivables(options={}){uiState.financeReceivables={...uiState.financeReceivables,...options,offset:Number(options.offset??uiState.financeReceivables.offset)||0};return renderCloudHome(app,repository,runtime,session,'finance',{revalidate:false});},
