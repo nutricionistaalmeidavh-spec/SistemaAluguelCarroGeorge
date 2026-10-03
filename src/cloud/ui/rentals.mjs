@@ -42,6 +42,6 @@ export function bindRentals(root,{snapshot,user,actions}){
   }
   root.querySelectorAll('[data-rental-inspection]').forEach(button=>button.onclick=()=>actions.openInspection(button.dataset.rentalInspection,button.dataset.kind));
   root.querySelectorAll('[data-rental-documents]').forEach(button=>button.onclick=()=>actions.openRentalDocuments(button.dataset.rentalDocuments));
-  root.querySelectorAll('[data-rental-close]').forEach(button=>button.onclick=async()=>{const returnAt=await openContinuousCloseDialog();if(!returnAt)return;await actions.queue('rental.closeContinuous',{rentalId:button.dataset.rentalClose,returnAt},'CLOSE');await actions.openInspection(button.dataset.rentalClose,'return');});
+  root.querySelectorAll('[data-rental-close]').forEach(button=>button.onclick=async()=>{const returnAt=await openContinuousCloseDialog();if(!returnAt)return;await actions.queue('rental.closeContinuous',{rentalId:button.dataset.rentalClose,returnAt},'CLOSE');await actions.openInspection(button.dataset.rentalClose,'return',{allowPendingContinuousClose:true});});
   root.querySelectorAll('[data-payment-rental]').forEach(button=>button.onclick=async()=>{const fresh=actions.paymentContext?await actions.paymentContext(button.dataset.paymentRental):snapshot;return collectRentalPayment(fresh,button.dataset.paymentRental,actions,{refresh:'rentals'});});
 }
