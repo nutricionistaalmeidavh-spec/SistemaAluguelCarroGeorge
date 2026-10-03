@@ -102,6 +102,21 @@ test('fluxos secundários não usam prompt sequencial na PWA',async()=>{
 });
 
 
+
+test('desktop centraliza recebimentos em um único fluxo compartilhado',async()=>{
+  const [payments,rentals,finance]=await Promise.all([
+    source('src/ui/payments.mjs'),
+    source('src/ui/reservas.mjs'),
+    source('src/ui/financeiro.mjs')
+  ]);
+  assert.match(payments,/export function openRentalPayment/);
+  assert.match(rentals,/openRentalPayment/);
+  assert.match(finance,/openRentalPayment/);
+  assert.match(rentals,/Receber pagamento/);
+  assert.match(finance,/Receber pagamento/);
+  assert.doesNotMatch(finance,/data-open-billing/);
+});
+
 test('desktop usa retirada e devolução como tarefas, sem botão genérico Avançar',async()=>{
   const rentals=await source('src/ui/reservas.mjs');
   assert.match(rentals,/data-rental-inspection/);
