@@ -102,3 +102,19 @@ input[placeholder="dd/mm/aaaa"]::placeholder,input[placeholder="dd/mm/aaaa hh:mm
   .empty-state{min-height:120px;padding:20px 16px}
   .empty-state .primary{width:100%;min-height:42px}
 }
+
+
+/* Intuitive simplification */
+.desktop-nav-more{margin-top:4px;border-top:1px solid #2c323d;padding-top:6px}
+.desktop-nav-more>summary{cursor:pointer;list-style:none;color:#b8bfca;font-size:12px;font-weight:800;padding:10px 12px;border-radius:8px}
+.desktop-nav-more>summary::-webkit-details-marker{display:none}
+.desktop-nav-more>summary::after{content:'+';float:right;color:#f37a20}
+.desktop-nav-more[open]>summary::after{content:'–'}
+.desktop-nav-more-list{display:grid;gap:5px;margin-top:4px}
+.form-advanced{border:1px solid #e4e7eb;border-radius:10px;background:#fafbfc;padding:0}
+.form-advanced>summary{cursor:pointer;list-style:none;padding:12px 14px;color:#59616c;font-weight:800}
+.form-advanced>summary::-webkit-details-marker{display:none}
+.form-advanced[open]>summary{border-bottom:1px solid #e4e7eb}
+.form-advanced>.form-grid,.form-advanced>label{padding:14px}
+.finance-subnav{display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 16px}
+@media(max-width:700px){.finance-subnav{display:grid;grid-template-columns:1fr 1fr}.finance-subnav button{width:100%}.form-advanced>.form-grid{grid-template-columns:1fr}}
