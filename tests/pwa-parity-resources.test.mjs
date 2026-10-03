@@ -34,5 +34,5 @@ test('cloud delta cache understands the new parity entities',async()=>{
 
 test('PWA navigation preserves all 12 approved operational modules',()=>{
   const operational=PWA_NAV.filter(item=>item.id!=='administration');
-  assert.deepEqual(operational.map(item=>item.label),['Visão geral','Clientes','Frota','Locações','Vistorias','Financeiro','Cobranças','Inadimplência','Contratos','Documentos','Alertas','Manutenção']);
+  assert.deepEqual(operational.map(item=>item.label),['Hoje','Clientes','Frota','Locações','Vistorias','Financeiro','Cobranças','Inadimplência','Contratos','Documentos','Alertas','Manutenção']);
 });
