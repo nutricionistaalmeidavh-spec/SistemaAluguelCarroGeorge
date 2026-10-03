@@ -58,8 +58,8 @@ test('locação oferece ações do trabalho e não estados técnicos como fluxo 
 test('vistoria conclui o ciclo operacional e avança a locação automaticamente',async()=>{
   const inspections=await source('src/cloud/ui/inspections.mjs');
   assert.match(inspections,/rental\.advance/);
-  assert.match(inspections,/kind==='pickup'/);
-  assert.match(inspections,/kind==='return'/);
+  assert.match(inspections,/inspectionKind==='pickup'/);
+  assert.match(inspections,/inspectionKind==='return'/);
   assert.match(inspections,/actions\.refresh\('rentals'\)/);
 });
 
