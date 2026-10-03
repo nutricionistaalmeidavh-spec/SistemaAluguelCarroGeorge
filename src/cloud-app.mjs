@@ -3,7 +3,7 @@ import { createRuntimeRepository } from './storage/repository.mjs';
 import { createOfflineBlobStore } from './storage/offline-blob-store.mjs';
 import { runOutbox } from './sync/outbox-runner.mjs';
 import { buildCloudSnapshot,esc,navigationFor,navHtml } from './cloud/ui/common.mjs';
-import { overviewHtml } from './cloud/ui/overview.mjs';
+import { overviewHtml,bindOverview } from './cloud/ui/overview.mjs';
 import { customersHtml,bindCustomers } from './cloud/ui/customers.mjs';
 import { vehiclesHtml,bindVehicles } from './cloud/ui/vehicles.mjs';
 import { rentalsHtml,bindRentals } from './cloud/ui/rentals.mjs';
@@ -26,10 +26,10 @@ const RESOURCE_PERMISSIONS=Object.freeze({
   contractTemplates:'contracts.read',issuedContracts:'contracts.read',attachments:'documents.read',alertState:'alerts.read'
 });
 export const VIEW_RESOURCES=Object.freeze({
-  overview:Object.freeze([]),
+  overview:Object.freeze(['customers','vehicles','rentals']),
   customers:Object.freeze(['customers']),
   vehicles:Object.freeze(['vehicles']),
-  rentals:Object.freeze(['customers','vehicles','rentals']),
+  rentals:Object.freeze(['customers','vehicles','rentals','inspections']),
   inspections:Object.freeze(['customers','vehicles','rentals','inspections','inspectionItems','attachments']),
   finance:Object.freeze(['vehicles','expenses']),
   billing:Object.freeze(['customers','vehicles','rentals','billingPlans','billingInstallments']),
@@ -65,7 +65,7 @@ export const MUTATION_REFRESH=Object.freeze({
 });
 export function resourcesForMutation(kind,user){const allowed=new Set(allowedResources(user));return (MUTATION_REFRESH[String(kind)]??[]).filter(resource=>allowed.has(resource));}
 const DEVICE_KEY='cloud:device-id',CLOUD_INSTALLATION_ID='LOCADORA-GEORGE',GEORGE_LOGIN_EMAIL='georgedaut.adm@gmail.com';
-const uiState={view:'overview',editingCustomerId:null,editingVehicleId:null,financeReceivables:{limit:30,offset:0,q:''}};
+const uiState={view:'overview',editingCustomerId:null,editingVehicleId:null,inspectionPreset:null,rentalDocumentId:null,financeReceivables:{limit:30,offset:0,q:''}};
 let flash='',viewRefreshSequence=0;
 
 function operationId(prefix='OP'){return `${prefix}-${crypto.randomUUID()}`;}
@@ -115,7 +115,7 @@ function successFor(kind,online){if(kind==='customer.create')return online?'Clie
 function renderLogin(app,repository,runtime,{error='',firstAccess=false,username=GEORGE_LOGIN_EMAIL,currentPassword=''}={}){app.innerHTML=`<div class="login-wrap"><form id="cloud-login" class="login-card"><div class="brand big"><span class="brandmark">LV</span><div><small>ARTISYS</small><strong>Sistema Locadora George</strong></div></div><h1>${firstAccess?'Primeiro acesso':'Acesso online'}</h1><label>E-mail<input name="username" type="email" autocomplete="username" value="${esc(username)}" required></label><label>${firstAccess?'Senha atual':'Senha'}<input name="password" type="password" autocomplete="current-password" value="${esc(currentPassword)}" required></label>${firstAccess?'<label>Nova senha<input name="newPassword" type="password" autocomplete="new-password" minlength="10" required></label>':''}<button class="primary">${firstAccess?'Definir senha e entrar':'Entrar'}</button><p class="hint">A sessão é validada pelo servidor. Operações offline ficam salvas neste aparelho.</p><p id="cloud-login-error" class="error">${esc(error)}</p></form></div>`;app.querySelector('#cloud-login').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,fd=new FormData(form),identity={installationId:CLOUD_INSTALLATION_ID,username:String(fd.get('username')??'').trim().toLowerCase()},password=String(fd.get('password')??''),errorNode=app.querySelector('#cloud-login-error');errorNode.textContent='';form.querySelector('button').disabled=true;try{const id=await deviceId(repository),result=firstAccess?await repository.api.firstAccess({...identity,currentPassword:password,newPassword:String(fd.get('newPassword')??''),deviceId:id}):await repository.api.login({...identity,password,deviceId:id});const live={...result,_offlineSession:false};await repository.setSession(live);await renderCloudHome(app,repository,runtime,live,'overview');}catch(loginError){if(loginError?.code==='password_change_required')return renderLogin(app,repository,runtime,{firstAccess:true,username:identity.username,currentPassword:password});errorNode.textContent=message(loginError);form.querySelector('button').disabled=false;}};}
 
 function viewModule(view){return({
-  overview:{html:(snapshot,user)=>overviewHtml(snapshot,user),bind:null},
+  overview:{html:(snapshot,user)=>overviewHtml(snapshot,user),bind:bindOverview},
   customers:{html:(snapshot,user)=>customersHtml(snapshot,user,{editingId:uiState.editingCustomerId}),bind:bindCustomers},
   vehicles:{html:(snapshot,user)=>vehiclesHtml(snapshot,user,{editingId:uiState.editingVehicleId}),bind:bindVehicles},
   rentals:{html:rentalsHtml,bind:bindRentals},inspections:{html:inspectionsHtml,bind:bindInspections},finance:{html:financeHtml,bind:bindFinance},billing:{html:billingHtml,bind:bindBilling},delinquency:{html:delinquencyHtml,bind:bindDelinquency},contracts:{html:contractsHtml,bind:bindContracts},documents:{html:documentsHtml,bind:bindDocuments},alerts:{html:alertsHtml,bind:bindAlerts},maintenance:{html:maintenanceHtml,bind:bindMaintenance},administration:{html:administrationHtml,bind:bindAdministration}
@@ -158,7 +158,7 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
   const firstHydration=state.missing.length>0&&navigator.onLine&&safeView!=='administration';
   viewNode.innerHTML=firstHydration?'<div class="panel" data-test="cloud-view-loading"><strong>Carregando dados desta área…</strong><p class="hint">A navegação permanece disponível enquanto os dados são atualizados.</p></div>':module?.html(snapshot,user,{...uiState,pagination:state.pagination})??'<div class="panel">Tela indisponível.</div>';
   flash='';
-  const rerender=target=>renderCloudHome(app,repository,runtime,session,target??safeView);
+  const rerender=target=>{const next=target??safeView;if(next!=='inspections')uiState.inspectionPreset=null;if(next!=='documents')uiState.rentalDocumentId=null;return renderCloudHome(app,repository,runtime,session,next);};
   if(firstHydration){
     for(const button of nav.querySelectorAll('[data-cloud-nav]'))button.onclick=()=>void rerender(button.dataset.cloudNav);
     shell.querySelector('#cloud-logout').onclick=async()=>{viewRefreshSequence++;try{await repository.api.logout();}catch{}await repository.clearSession();renderLogin(app,repository,runtime);};
@@ -174,6 +174,9 @@ async function renderCloudHome(app,repository,runtime,session,view=uiState.view,
     async deleteEntity(resource,id,expectedVersion){const entity=resource==='customers'?'customer':'vehicle';await queueOperation(repository,runtime,{kind:`${entity}.delete`,payload:{id,expectedVersion},operationId:operationId(entity==='customer'?'CUS':'VEI')});flash=navigator.onLine?'Registro removido e sincronizado.':'Remoção salva neste aparelho.';},
     async uploadFile(file,entityType,entityId){const id=`ATT-${crypto.randomUUID()}`;await runtime.blobs.put(id,file,{entityType,entityId,mimeType:file.type||'application/octet-stream',fileName:file.name||'arquivo'});await queueOperation(repository,runtime,{kind:'attachment.upload',payload:{attachmentId:id},operationId:operationId('ATT')});return id;},
     async flush(){return flushPending(repository,runtime);},async refresh(target=safeView){return renderCloudHome(app,repository,runtime,session,target,{revalidate:false});},
+    async openInspection(rentalId,kind='pickup'){uiState.inspectionPreset={rentalId:String(rentalId),kind:kind==='return'?'return':'pickup'};return renderCloudHome(app,repository,runtime,session,'inspections',{revalidate:false});},
+    async openRentalDocuments(rentalId){uiState.rentalDocumentId=String(rentalId);return renderCloudHome(app,repository,runtime,session,'documents',{revalidate:false});},
+    async openFinanceSubview(target){const view=target==='billing'?'billing':'delinquency';return renderCloudHome(app,repository,runtime,session,view,{revalidate:false});},
     async loadResourcePage(resource,options={}){const current=state.pagination?.[resource]??{},next={limit:Number(options.limit??current.limit)||undefined,offset:Number(options.offset??current.offset)||0,q:options.q??current.q??'',filters:options.filters??current.filters??{},from:options.from??current.from??'',to:options.to??current.to??''};await repository.page(resource,next);return renderCloudHome(app,repository,runtime,session,safeView,{revalidate:false});},
     async loadFinanceReceivables(options={}){uiState.financeReceivables={...uiState.financeReceivables,...options,offset:Number(options.offset??uiState.financeReceivables.offset)||0};return renderCloudHome(app,repository,runtime,session,'finance',{revalidate:false});},
     async getResource(resource,id){return repository.api.get(resource,id);},
