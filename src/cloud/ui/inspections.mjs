@@ -41,6 +41,9 @@ export function bindInspections(root,{snapshot,user,actions,state}){
       if(inspectionKind==='return'&&sourceRental?.status==='em_uso')await actions.queue('rental.advance',{rentalId,status:'devolucao'},'ADV');
       await actions.flush();
       if(state)state.inspectionPreset=null;
+      const online=navigator.onLine!==false;
+      if(inspectionKind==='pickup')await actions.notice(online?'Retirada concluída. Veículo em uso.':'Retirada salva neste aparelho. Será sincronizada quando houver conexão.');
+      else await actions.notice(online?'Devolução concluída. Locação encerrada.':'Devolução salva neste aparelho. Será sincronizada quando houver conexão.');
       await actions.refresh('rentals');
     };
   }
