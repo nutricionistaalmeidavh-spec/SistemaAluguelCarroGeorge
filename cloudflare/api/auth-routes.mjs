@@ -15,6 +15,7 @@ async function body(request){
 }
 function validIdentity(installationId,username,password){return Boolean(installationId&&username&&password&&installationId.length<=120&&username.length<=120&&password.length<=MAX_PASSWORD_LENGTH);}
 function strongPassword(value){const password=String(value??'');return password.length>=MIN_PASSWORD_LENGTH&&password.length<=MAX_PASSWORD_LENGTH;}
+function recoveryCode(){const bytes=crypto.getRandomValues(new Uint8Array(12)),hex=Array.from(bytes,value=>value.toString(16).padStart(2,'0')).join('').toUpperCase();return hex.match(/.{1,6}/g).join('-');}
 export function sanitizeAuthUser(user){return{id:user.id??user.userId,username:user.username,name:user.name,role:user.role,active:Boolean(user.active)};}
 
 export function createD1AuthService(env,request){
@@ -35,6 +36,26 @@ export function createD1AuthService(env,request){
     },
     async createSession({installationId,userId,deviceId}){
       return createSessionRecord(db,{installationId,userId,deviceId,userAgent:request.headers.get('user-agent')??''});
+    },
+    async issueRecoveryCode(auth){
+      if(!auth?.installationId||!auth?.userId)throw Object.assign(new Error('unauthorized'),{status:401});
+      const code=recoveryCode(),codeHash=await hashPassword(code),createdAt=new Date().toISOString(),expiresAt=new Date(Date.now()+30*24*60*60*1000).toISOString(),id=`REC-${crypto.randomUUID()}`;
+      await db.prepare('UPDATE auth_recovery_codes SET used_at = ? WHERE installation_id = ? AND user_id = ? AND used_at IS NULL').bind(createdAt,auth.installationId,auth.userId).run();
+      await db.prepare('INSERT INTO auth_recovery_codes (id,installation_id,user_id,code_hash,created_at,expires_at,used_at) VALUES (?,?,?,?,?,?,NULL)').bind(id,auth.installationId,auth.userId,codeHash,createdAt,expiresAt).run();
+      return{code,expiresAt};
+    },
+    async recoverAccess({installationId,username,recoveryCode:code,newPasswordHash}={}){
+      const effectiveInstallation=loginInstallation(installationId,username);
+      if(effectiveInstallation===GEORGE_INSTALLATION_ID||effectiveInstallation===DEMO_INSTALLATION_ID)await ensureGeorgeAdmin(db);
+      const user=await db.prepare('SELECT id,installation_id,username,name,role,active FROM users WHERE installation_id=? AND lower(username)=lower(?) AND active=1 AND deleted_at IS NULL LIMIT 1').bind(effectiveInstallation,String(username)).first();
+      if(!user)return false;
+      const now=new Date().toISOString(),row=await db.prepare('SELECT id,code_hash FROM auth_recovery_codes WHERE installation_id=? AND user_id=? AND used_at IS NULL AND expires_at>? ORDER BY created_at DESC LIMIT 1').bind(effectiveInstallation,user.id,now).first();
+      if(!row||!(await verifyPassword(String(code??''),row.code_hash)).ok)return false;
+      const consumed=await db.prepare('UPDATE auth_recovery_codes SET used_at=? WHERE id=? AND installation_id=? AND used_at IS NULL').bind(now,row.id,effectiveInstallation).run();
+      if(Number(consumed?.meta?.changes??0)!==1)return false;
+      await db.prepare('UPDATE users SET password_hash=?,must_change_password=0,updated_at=?,version=version+1 WHERE installation_id=? AND id=? AND active=1 AND deleted_at IS NULL').bind(newPasswordHash,now,effectiveInstallation,user.id).run();
+      await db.prepare('UPDATE sessions SET revoked_at=COALESCE(revoked_at,?) WHERE installation_id=? AND user_id=? AND revoked_at IS NULL').bind(now,effectiveInstallation,user.id).run();
+      return true;
     },
     async revokeSession(token){return revokeSessionToken(db,token);}
   });
@@ -71,6 +92,21 @@ export async function handleAuthRoute(request,env,_ctx,{service=null,auth=null}=
       const newHash=await hashPassword(newPassword);await authService.completeFirstAccess(user,newHash);
       const session=await authService.createSession({installationId:user.installation_id,userId:user.id,deviceId:input.deviceId?String(input.deviceId):null});
       return json({ok:true,user:sanitizeAuthUser({...user,must_change_password:0}),expiresAt:session.expiresAt},200,{'set-cookie':buildSessionCookie(session.token)});
+    }
+    if(action==='recovery-code'){
+      if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405,{allow:'POST'});
+      if(!auth||auth.role!=='admin'||!auth.active)return json({ok:false,error:'forbidden'},403);
+      const authService=service??createD1AuthService(env,request),issued=await authService.issueRecoveryCode(auth);
+      return json({ok:true,recoveryCode:issued.code,expiresAt:issued.expiresAt},201);
+    }
+    if(action==='recover'){
+      if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405,{allow:'POST'});
+      const input=await body(request),installationId=String(input.installationId??'').trim(),username=String(input.username??'').trim(),code=String(input.recoveryCode??'').trim(),newPassword=String(input.newPassword??'');
+      if(!strongPassword(newPassword))return json({ok:false,error:'weak_password',minimumLength:MIN_PASSWORD_LENGTH},400);
+      if(!installationId||!username||!code||installationId.length>120||username.length>120||code.length>160)return json({ok:false,error:'recovery_code_invalid'},401);
+      const authService=service??createD1AuthService(env,request),newPasswordHash=await hashPassword(newPassword),recovered=await authService.recoverAccess({installationId,username,recoveryCode:code,newPasswordHash});
+      if(!recovered)return json({ok:false,error:'recovery_code_invalid'},401);
+      return json({ok:true});
     }
     const authService=service??createD1AuthService(env,request);
     if(action==='me'){
