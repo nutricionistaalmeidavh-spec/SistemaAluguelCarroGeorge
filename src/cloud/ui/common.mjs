@@ -17,7 +17,7 @@ export const PWA_NAV=Object.freeze([
 ]);
 
 export const PRIMARY_NAV_IDS=Object.freeze(['overview','rentals','customers','vehicles','finance']);
-export const SECONDARY_NAV_IDS=Object.freeze(['inspections','billing','delinquency','maintenance','contracts','documents','alerts','administration']);
+export const SECONDARY_NAV_IDS=Object.freeze(['administration']);
 const NAV_PARENT=Object.freeze({
   inspections:'rentals',
   contracts:'rentals',
