@@ -117,3 +117,26 @@ input[placeholder="dd/mm/aaaa"]::placeholder,input[placeholder="dd/mm/aaaa hh:mm
 .form-advanced>.form-grid,.form-advanced>label{padding:14px}
 .finance-subnav{display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 16px}
 @media(max-width:700px){.finance-subnav{display:grid;grid-template-columns:1fr 1fr}.finance-subnav button{width:100%}.form-advanced>.form-grid{grid-template-columns:1fr}}
+
+
+/* Product Design final: contexto, contraste e teclado */
+.context-links{display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 16px}
+.context-links button{background:#fff;border:1px solid #d8dde4;color:#384250}
+.form-advanced>summary,.advanced-diagnostics>summary{cursor:pointer;font-weight:800;color:#384250;padding:12px 14px}
+.form-advanced>summary{list-style:none}
+.form-advanced>summary::-webkit-details-marker{display:none}
+.advanced-diagnostics{margin-top:18px;border-top:1px solid #d8dde4;padding-top:10px}
+.advanced-diagnostics-body{padding:8px 14px 14px}
+.payment-quick{display:flex;gap:8px;flex-wrap:wrap}
+.payment-quick button{background:#fff;border:1px solid #d8dde4}
+.payment-context{display:grid;gap:4px}
+.payment-history{margin-top:4px}
+.hint,.panel-title span,.vehicle small,.agenda-item small{color:#4f5967}
+button,.file-button,summary{min-height:44px}
+*:focus-visible{outline:3px solid #9d4306;outline-offset:2px}
+.modal[role="dialog"]{outline:none}
+@media(max-width:700px){
+  .context-links{display:grid;grid-template-columns:1fr}
+  .context-links button,.payment-quick button{width:100%}
+  .payment-quick{display:grid;grid-template-columns:1fr 1fr}
+}
