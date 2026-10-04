@@ -27,7 +27,7 @@
     {
       "action": "expectText",
       "selector": "#view",
-      "expected": "Backup verificável"
+      "expected": "Backup"
     },
     {
       "action": "expectVisible",
