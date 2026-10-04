@@ -63,11 +63,6 @@
     },
     {
       "action": "fill",
-      "selector": "#vehicle-form [name=\"year\"]",
-      "value": "2025"
-    },
-    {
-      "action": "fill",
       "selector": "#vehicle-form [name=\"dailyRate\"]",
       "value": "150"
     },
@@ -86,56 +81,37 @@
     {
       "action": "fill",
       "selector": "#rental-form [name=\"pickupAt\"]",
-      "value": "2030-01-10T10:00"
+      "value": "10/01/2030 10:00"
     },
     {
       "action": "fill",
       "selector": "#rental-form [name=\"returnAt\"]",
-      "value": "2030-01-12T10:00"
-    },
-    {
-      "action": "fill",
-      "selector": "#rental-form [name=\"dailyRate\"]",
-      "value": "150"
+      "value": "12/01/2030 10:00"
     },
     {
       "action": "click",
       "selector": "#rental-form button.primary"
     },
     {
+      "action": "expectVisible",
+      "selector": "[data-rental-inspection]"
+    },
+    {
       "action": "click",
-      "selector": "[data-nav=\"reservas\"]"
+      "selector": "[data-rental-inspection]"
     },
     {
       "action": "expectVisible",
-      "selector": "#new-rental"
-    },
-    {
-      "action": "click",
-      "selector": ".desktop-nav-more>summary"
-    },
-    {
-      "action": "click",
-      "selector": "[data-nav=\"vistorias\"]"
+      "selector": "#inspection-form"
     },
     {
       "action": "expectText",
-      "selector": "#view",
-      "expected": "Vistorias"
-    },
-    {
-      "action": "expectText",
-      "selector": "#view",
-      "expected": "Retirada"
-    },
-    {
-      "action": "expectText",
-      "selector": "#view",
-      "expected": "Devolução"
+      "selector": ".modal",
+      "expected": "Vistoria de retirada"
     },
     {
       "action": "screenshot",
-      "name": "rental-inspection-workflow",
+      "name": "rental-inspection-from-rental",
       "fullPage": true
     }
   ]
