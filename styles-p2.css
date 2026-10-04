@@ -102,3 +102,41 @@ input[placeholder="dd/mm/aaaa"]::placeholder,input[placeholder="dd/mm/aaaa hh:mm
   .empty-state{min-height:120px;padding:20px 16px}
   .empty-state .primary{width:100%;min-height:42px}
 }
+
+
+/* Intuitive simplification */
+.desktop-nav-more{margin-top:4px;border-top:1px solid #2c323d;padding-top:6px}
+.desktop-nav-more>summary{cursor:pointer;list-style:none;color:#b8bfca;font-size:12px;font-weight:800;padding:10px 12px;border-radius:8px}
+.desktop-nav-more>summary::-webkit-details-marker{display:none}
+.desktop-nav-more>summary::after{content:'+';float:right;color:#f37a20}
+.desktop-nav-more[open]>summary::after{content:'–'}
+.desktop-nav-more-list{display:grid;gap:5px;margin-top:4px}
+.form-advanced{border:1px solid #e4e7eb;border-radius:10px;background:#fafbfc;padding:0}
+.form-advanced-toggle{width:100%;text-align:left;border:0;border-radius:10px;background:transparent;padding:12px 14px;color:#59616c;font-weight:800}
+.form-advanced-toggle:hover{background:#f4f6f8}
+.form-advanced>.form-grid,.form-advanced>label{padding:14px}
+.finance-subnav{display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 16px}
+@media(max-width:700px){.finance-subnav{display:grid;grid-template-columns:1fr 1fr}.finance-subnav button{width:100%}.form-advanced>.form-grid{grid-template-columns:1fr}}
+
+
+/* Product Design final: contexto, contraste e teclado */
+.context-links{display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 16px}
+.context-links button{background:#fff;border:1px solid #d8dde4;color:#384250}
+.form-advanced>summary,.advanced-diagnostics>summary{cursor:pointer;font-weight:800;color:#384250;padding:12px 14px}
+.form-advanced>summary{list-style:none}
+.form-advanced>summary::-webkit-details-marker{display:none}
+.advanced-diagnostics{margin-top:18px;border-top:1px solid #d8dde4;padding-top:10px}
+.advanced-diagnostics-body{padding:8px 14px 14px}
+.payment-quick{display:flex;gap:8px;flex-wrap:wrap}
+.payment-quick button{background:#fff;border:1px solid #d8dde4}
+.payment-context{display:grid;gap:4px}
+.payment-history{margin-top:4px}
+.hint,.panel-title span,.vehicle small,.agenda-item small{color:#4f5967}
+button,.file-button,summary{min-height:44px}
+*:focus-visible{outline:3px solid #9d4306;outline-offset:2px}
+.modal[role="dialog"]{outline:none}
+@media(max-width:700px){
+  .context-links{display:grid;grid-template-columns:1fr}
+  .context-links button,.payment-quick button{width:100%}
+  .payment-quick{display:grid;grid-template-columns:1fr 1fr}
+}

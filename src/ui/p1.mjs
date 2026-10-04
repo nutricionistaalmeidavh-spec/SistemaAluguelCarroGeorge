@@ -1,11 +1,14 @@
 import { can } from '../domain/auth.mjs';
 import { buildDashboard } from '../domain/reports.mjs';
+import { moveRental } from '../domain/rental.mjs';
+import { closeContinuousDailyRental } from '../domain/daily-billing.mjs';
 import { buildOperationalAlerts, acknowledgeAlert, dismissAlert } from '../domain/alerts.mjs';
 import { createInspection, setInspectionItem, addInspectionPhoto, completeInspection, inspectionProgress } from '../domain/inspection.mjs';
 import { scheduleMaintenance, startMaintenance, completeMaintenance, maintenanceDue } from '../domain/maintenance.mjs';
 import { rentalContractPdf, rentalReceiptPdf, inspectionPdf } from '../domain/documents.mjs';
-import { closeModal, date, esc, modal, money, toast } from './common.mjs';
+import { brDateTimeToIso, brDateTimeValue, closeModal, date, esc, friendlyId, modal, money, rentalStatusLabel, toast } from './common.mjs';
 
+function localDateTime(value=new Date()){const d=value instanceof Date?value:new Date(value);const local=new Date(d.getTime()-d.getTimezoneOffset()*60_000);return local.toISOString().slice(0,16);}
 function pdf(name,bytes){const blob=new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
 
 const PHOTO_TYPES=new Set(['image/jpeg','image/png','image/webp']);
@@ -39,20 +42,23 @@ function attachmentId(){
   const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);return `ATT-${Array.from(bytes).map(v=>v.toString(16).padStart(2,'0')).join('')}`;
 }
 
-export function renderDashboard(view,{snapshot}){
-  const d=buildDashboard(snapshot);
-  view.innerHTML=`<div class="heading"><div><small>VISÃO GERAL</small><h1>Dashboard</h1></div></div>
-  <div class="cards six"><article><small>Ocupação</small><strong>${d.occupancyRate}%</strong></article><article><small>Locações abertas</small><strong>${d.openRentals}</strong></article><article><small>Em atraso</small><strong>${d.overdueRentals}</strong></article><article><small>Recebido</small><strong>${money(d.received)}</strong></article><article><small>Em aberto</small><strong>${money(d.openAmount)}</strong></article><article><small>Caixa líquido</small><strong>${money(d.netCash)}</strong></article></div>
-  <div class="split"><section class="panel"><h2>Frota</h2><div class="kpi-lines"><p><span>Total</span><b>${d.fleetTotal}</b></p><p><span>Disponíveis</span><b>${d.availableVehicles}</b></p><p><span>Em manutenção</span><b>${d.maintenanceVehicles}</b></p><p><span>Ticket médio</span><b>${money(d.averageTicket)}</b></p></div></section><section class="panel"><h2>Rentabilidade por veículo</h2><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Locações</th><th>Receita</th><th>Custos</th><th>Margem</th></tr></thead><tbody>${d.vehiclePerformance.map(v=>`<tr><td>${esc(v.model)}<small>${esc(v.plate)}</small></td><td>${v.rentalCount}</td><td>${money(v.revenue)}</td><td>${money(v.expenses)}</td><td><b>${money(v.margin)}</b></td></tr>`).join('')||'<tr><td colspan="5" class="empty">Sem dados.</td></tr>'}</tbody></table></div></section></div>`;
+export function renderDashboard(view,ctx){
+  const {snapshot,sessionUser,navigate}=ctx;
+  const alertsAction=can(sessionUser,'alerts.read')?'<button type="button" data-dashboard-alerts>Todos os alertas</button>':'';
+  const d=buildDashboard(snapshot),open=(snapshot.rentals??[]).filter(item=>item.status!=='devolucao'),pickups=open.filter(item=>['reserva','retirada'].includes(item.status)),returns=open.filter(item=>item.status==='em_uso');
+  const tasks=open.slice().sort((a,b)=>String(a.pickupAt||'').localeCompare(String(b.pickupAt||''))).slice(0,6).map(item=>{const customer=snapshot.customers.find(row=>row.id===item.customerId),vehicle=snapshot.vehicles.find(row=>row.id===item.vehicleId),returning=item.status==='em_uso';return `<article class="card"><div><small>${returning?'DEVOLUÇÃO':'RETIRADA'}</small><strong>${esc(vehicle?.model||item.vehicleId)} · ${esc(customer?.name||item.customerId)}</strong><small>${date(returning?item.returnAt:item.pickupAt)}</small></div><button class="primary" data-dashboard-nav="reservas">${returning?'Registrar devolução':'Fazer retirada'}</button></article>`;}).join('');
+  view.innerHTML=`<div class="heading"><div><small>O QUE PRECISA DE ATENÇÃO</small><h1>Hoje</h1></div>${alertsAction}</div>
+  <section class="panel"><div class="panel-title"><div><h2>Próximas ações</h2><span>Comece pelo trabalho que precisa ser feito.</span></div></div><div class="cards"><article><small>Retiradas</small><strong>${pickups.length}</strong><button class="secondary" data-dashboard-nav="reservas">Ver locações</button></article><article><small>Devoluções</small><strong>${returns.length}</strong><button class="secondary" data-dashboard-nav="reservas">Ver locações</button></article><article><small>Receber</small><strong>${money(d.openAmount)}</strong><button class="secondary" data-dashboard-nav="financeiro">Abrir financeiro</button></article></div><div class="cloud-card-list">${tasks||'<p class="empty">Nenhuma retirada ou devolução pendente.</p>'}</div></section>
+  <details class="panel"><summary>Indicadores</summary><div class="cards six"><article><small>Ocupação</small><strong>${d.occupancyRate}%</strong></article><article><small>Locações abertas</small><strong>${d.openRentals}</strong></article><article><small>Em atraso</small><strong>${d.overdueRentals}</strong></article><article><small>Recebido</small><strong>${money(d.received)}</strong></article><article><small>Em aberto</small><strong>${money(d.openAmount)}</strong></article><article><small>Caixa líquido</small><strong>${money(d.netCash)}</strong></article></div>
+  <div class="split"><section><h2>Frota</h2><div class="kpi-lines"><p><span>Total</span><b>${d.fleetTotal}</b></p><p><span>Disponíveis</span><b>${d.availableVehicles}</b></p><p><span>Em manutenção</span><b>${d.maintenanceVehicles}</b></p><p><span>Ticket médio</span><b>${money(d.averageTicket)}</b></p></div></section><section><h2>Rentabilidade por veículo</h2><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Locações</th><th>Receita</th><th>Custos</th><th>Margem</th></tr></thead><tbody>${d.vehiclePerformance.map(v=>`<tr><td>${esc(v.model)}<small>${esc(v.plate)}</small></td><td>${v.rentalCount}</td><td>${money(v.revenue)}</td><td>${money(v.expenses)}</td><td><b>${money(v.margin)}</b></td></tr>`).join('')||'<tr><td colspan="5" class="empty">Sem dados.</td></tr>'}</tbody></table></div></section></div></details>`;
+  view.querySelectorAll('[data-dashboard-nav]').forEach(button=>button.onclick=()=>navigate?.(button.dataset.dashboardNav));
+  view.querySelector('[data-dashboard-alerts]')?.addEventListener('click',()=>navigate?.('alertas'));
 }
 
-export function renderVistorias(view,ctx){
-  const {snapshot,sessionUser,save,repository}=ctx;const writable=can(sessionUser,'inspection.write');
-  view.innerHTML=`<div class="heading"><div><small>CHECKLIST E EVIDÊNCIAS</small><h1>Vistorias</h1></div></div>
-  <section class="panel"><h2>Locações</h2><div class="table-wrap"><table><thead><tr><th>Locação</th><th>Cliente</th><th>Veículo</th><th>Status</th><th>Ação</th></tr></thead><tbody>${snapshot.rentals.map(r=>{const c=snapshot.customers.find(x=>x.id===r.customerId),v=snapshot.vehicles.find(x=>x.id===r.vehicleId);return`<tr><td>${esc(r.id)}</td><td>${esc(c?.name||'-')}</td><td>${esc(v?.model||'-')}<small>${esc(v?.plate||'')}</small></td><td>${esc(r.status)}</td><td>${writable?`<button data-new-inspection="${esc(r.id)}" data-kind="checkout">Retirada</button> <button data-new-inspection="${esc(r.id)}" data-kind="return">Devolução</button>`:'-'}</td></tr>`}).join('')||'<tr><td colspan="5" class="empty">Nenhuma locação.</td></tr>'}</tbody></table></div></section>
-  <section class="panel"><h2>Histórico de vistorias</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Locação</th><th>Tipo</th><th>Progresso</th><th>KM</th><th>Fotos</th><th>Ações</th></tr></thead><tbody>${snapshot.inspections.map(i=>{const p=inspectionProgress(i);return`<tr><td>${esc(i.id)}</td><td>${esc(i.rentalId)}</td><td>${i.kind==='return'?'Devolução':'Retirada'}</td><td>${p.percent}%</td><td>${i.mileage??'-'}</td><td>${i.photos?.length??0}</td><td>${i.status==='draft'&&writable?`<button data-edit-inspection="${esc(i.id)}">Continuar</button>`:''}<button data-pdf-inspection="${esc(i.id)}">PDF</button></td></tr>`}).join('')||'<tr><td colspan="7" class="empty">Nenhuma vistoria.</td></tr>'}</tbody></table></div></section>`;
-
-  const open=(inspectionId)=>{const current=snapshot.inspections.find(i=>i.id===inspectionId);if(!current)return;modal(`Vistoria ${current.id}`,`<form id="inspection-form" class="form-grid"><div class="full checklist-grid">${current.checklist.map(item=>`<label class="checkline"><input type="checkbox" name="item-${esc(item.id)}" ${item.done?'checked':''}> ${esc(item.label)}</label>`).join('')}</div><label>Quilometragem<input name="mileage" type="number" min="0" value="${current.mileage??''}" required></label><label>Combustível<select name="fuelLevel" required><option value="">Selecione</option>${['Reserva','1/4','1/2','3/4','Cheio'].map(x=>`<option ${current.fuelLevel===x?'selected':''}>${x}</option>`).join('')}</select></label><label class="full">Fotos<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple></label><label class="full">Avarias (uma por linha)<textarea name="damages">${esc((current.damages??[]).join('\n'))}</textarea></label><label class="full">Observações<textarea name="notes">${esc(current.notes||'')}</textarea></label><div class="full modal-actions"><button type="button" data-close>Cancelar</button><button class="primary">Concluir vistoria</button></div></form>`,()=>{const form=document.querySelector('#inspection-form');form.onsubmit=async e=>{e.preventDefault();const createdAttachments=[];try{
+export function openInspectionEditor(ctx,inspectionId){
+  const {snapshot,sessionUser,save,repository,navigate}=ctx,current=snapshot.inspections.find(i=>i.id===inspectionId);if(!current)return;
+  const rental=snapshot.rentals.find(item=>item.id===current.rentalId),continuousReturn=current.kind==='return'&&rental?.periodMode==='continuous'&&!rental?.continuousClosedAt;
+  modal(current.kind==='return'?'Vistoria de devolução':'Vistoria de retirada',`<form id="inspection-form" class="form-grid"><div class="full checklist-grid">${current.checklist.map(item=>`<label class="checkline"><input type="checkbox" name="item-${esc(item.id)}" ${item.done?'checked':''}> ${esc(item.label)}</label>`).join('')}</div><label>Quilometragem<input name="mileage" type="number" min="0" value="${current.mileage??''}" required></label><label>Combustível<select name="fuelLevel" required><option value="">Selecione</option>${['Reserva','1/4','1/2','3/4','Cheio'].map(x=>`<option ${current.fuelLevel===x?'selected':''}>${x}</option>`).join('')}</select></label>${continuousReturn?`<label>Devolução real<input name="returnAt" inputmode="numeric" placeholder="dd/mm/aaaa hh:mm" value="${brDateTimeValue(new Date())}" required></label>`:''}<label class="full">Fotos<input name="photos" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple></label><label class="full">Avarias (uma por linha)<textarea name="damages">${esc((current.damages??[]).join('\n'))}</textarea></label><label class="full">Observações<textarea name="notes">${esc(current.notes||'')}</textarea></label><div class="full modal-actions"><button type="button" data-close>Cancelar</button><button class="primary">Concluir ${current.kind==='return'?'devolução':'retirada'}</button></div></form>`,()=>{const form=document.querySelector('#inspection-form');form.onsubmit=async e=>{e.preventDefault();const createdAttachments=[];try{
     let working=structuredClone(snapshot);
     for(const item of current.checklist)working=setInspectionItem(working,current.id,item.id,{done:form.elements[`item-${item.id}`].checked},sessionUser.id);
     for(const file of [...form.elements.photos.files]){
@@ -63,10 +69,23 @@ export function renderVistorias(view,ctx){
       working=addInspectionPhoto(working,current.id,{attachmentId:id,name:prepared.name,mimeType:prepared.mimeType,sizeBytes:prepared.bytes.byteLength,sha256:prepared.sha256},sessionUser.id);
     }
     working=completeInspection(working,current.id,{mileage:form.elements.mileage.value,fuelLevel:form.elements.fuelLevel.value,notes:form.elements.notes.value,damages:form.elements.damages.value.split('\n').map(x=>x.trim()).filter(Boolean)},sessionUser.id);
-    save(working);closeModal();toast('Vistoria concluída.');
-  }catch(err){for(const id of createdAttachments.reverse()){try{await repository?.attachments?.remove(id);}catch{}}toast(err.message)}};});};
-  view.querySelectorAll('[data-new-inspection]').forEach(b=>b.onclick=()=>{try{const next=createInspection(snapshot,{rentalId:b.dataset.newInspection,kind:b.dataset.kind},sessionUser.id);save(next);setTimeout(()=>{const latest=next.inspections[0];document.querySelector('[data-nav="vistorias"]')?.click();setTimeout(()=>document.querySelector(`[data-edit-inspection="${latest.id}"]`)?.click(),0);},0);}catch(err){toast(err.message)}});
-  view.querySelectorAll('[data-edit-inspection]').forEach(b=>b.onclick=()=>open(b.dataset.editInspection));
+    let rentalAfter=working.rentals.find(item=>item.id===current.rentalId);
+    if(current.kind==='checkout'){
+      if(rentalAfter?.status==='reserva')working=moveRental(working,current.rentalId,'retirada',sessionUser.id);
+      rentalAfter=working.rentals.find(item=>item.id===current.rentalId);
+      if(rentalAfter?.status==='retirada')working=moveRental(working,current.rentalId,'em_uso',sessionUser.id);
+    }else if(current.kind==='return'){
+      if(rentalAfter?.periodMode==='continuous'&&!rentalAfter?.continuousClosedAt)working=closeContinuousDailyRental(working,current.rentalId,{returnAt:brDateTimeToIso(form.elements.returnAt?.value,{required:true})},sessionUser.id);
+      else if(rentalAfter?.status==='em_uso')working=moveRental(working,current.rentalId,'devolucao',sessionUser.id);
+    }
+    save(working);closeModal();toast(current.kind==='return'?'Devolução concluída. Locação finalizada.':'Retirada concluída. Veículo em uso.');navigate?.('reservas');
+  }catch(err){for(const id of createdAttachments.reverse()){try{await repository?.attachments?.remove(id);}catch{}}toast(err.message)}};});
+}
+
+export function renderVistorias(view,ctx){
+  const {snapshot}=ctx;
+  view.innerHTML=`<div class="heading"><div><small>ARQUIVO</small><h1>Histórico de vistorias</h1></div><button type="button" data-back-rentals>Voltar para Locações</button></div><section class="panel"><p class="hint">Retiradas e devoluções são iniciadas exclusivamente na locação. Aqui ficam apenas os registros concluídos e seus PDFs.</p><div class="table-wrap"><table><thead><tr><th>Vistoria</th><th>Locação</th><th>Tipo</th><th>Status da locação</th><th>KM</th><th>Fotos</th><th></th></tr></thead><tbody>${snapshot.inspections.map(i=>{const rental=snapshot.rentals.find(r=>r.id===i.rentalId);return`<tr><td>${friendlyId(i.id,'Vistoria')}</td><td>${friendlyId(i.rentalId,'Locação')}</td><td>${i.kind==='return'?'Devolução':'Retirada'}</td><td>${esc(rentalStatusLabel(rental?.status))}</td><td>${i.mileage??'-'}</td><td>${i.photos?.length??0}</td><td><button data-pdf-inspection="${esc(i.id)}">PDF</button></td></tr>`}).join('')||'<tr><td colspan="7" class="empty">Nenhuma vistoria registrada.</td></tr>'}</tbody></table></div></section>`;
+  view.querySelector('[data-back-rentals]')?.addEventListener('click',()=>ctx.navigate?.('reservas'));
   view.querySelectorAll('[data-pdf-inspection]').forEach(b=>b.onclick=()=>pdf(`vistoria-${b.dataset.pdfInspection}.pdf`,inspectionPdf(snapshot,b.dataset.pdfInspection)));
 }
 

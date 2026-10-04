@@ -18,12 +18,16 @@
     },
     {
       "action": "click",
+      "selector": ".desktop-nav-more>summary"
+    },
+    {
+      "action": "click",
       "selector": "[data-nav=\"backup\"]"
     },
     {
       "action": "expectText",
       "selector": "#view",
-      "expected": "Backup verificável"
+      "expected": "Backup"
     },
     {
       "action": "expectVisible",

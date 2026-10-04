@@ -2,117 +2,25 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {launchLocadora}=require('./fixtures/locadora-electron.cjs');
 const password=process.env.LOCADORA_QA_ADMIN_PASSWORD;
+async function login(page){assert.ok(password,'LOCADORA_QA_ADMIN_PASSWORD is required');await page.locator('input[name="username"]').fill('admin');await page.locator('input[name="password"]').fill(password);await page.getByRole('button',{name:'Entrar'}).click();await page.locator('.session').getByText('Administrador').waitFor();}
+async function createCustomer(page,name='George E2E'){await page.locator('[data-nav="clientes"]').click();await page.locator('#new-customer').click();const f=page.locator('#customer-form');await f.locator('[name="name"]').fill(name);await f.locator('[name="document"]').fill('12345678900');await f.locator('[name="phone"]').fill('16999999999');await f.getByRole('button',{name:'Salvar'}).click();await page.getByText(name).waitFor();}
+async function createVehicle(page,model='Onix E2E',plate='E2E1A23'){await page.locator('[data-nav="frota"]').click();await page.locator('#new-vehicle').click();const f=page.locator('#vehicle-form');await f.locator('[name="model"]').fill(model);await f.locator('[name="plate"]').fill(plate);await f.locator('[name="dailyRate"]').fill('100');await f.getByRole('button',{name:'Salvar'}).click();await page.getByText(model).waitFor();}
 
-async function login(page){
-  assert.ok(password,'LOCADORA_QA_ADMIN_PASSWORD is required');
-  await page.locator('input[name="username"]').fill('admin');
-  await page.locator('input[name="password"]').fill(password);
-  await page.getByRole('button',{name:'Entrar'}).click();
-  await page.locator('.session').getByText('Administrador').waitFor();
-}
-
-async function createCustomer(page,name='George E2E'){
-  await page.locator('[data-nav="clientes"]').click();
-  await page.locator('#new-customer').click();
-  const form=page.locator('#customer-form');
-  await form.locator('[name="name"]').fill(name);
-  await form.locator('[name="document"]').fill('12345678900');
-  await form.locator('[name="phone"]').fill('16999999999');
-  await form.getByRole('button',{name:'Salvar'}).click();
-  await page.getByText(name).waitFor();
-}
-
-async function createVehicle(page,model='Onix E2E',plate='E2E1A23'){
-  await page.locator('[data-nav="frota"]').click();
-  await page.locator('#new-vehicle').click();
-  const form=page.locator('#vehicle-form');
-  await form.locator('[name="model"]').fill(model);
-  await form.locator('[name="plate"]').fill(plate);
-  await form.locator('[name="year"]').fill('2026');
-  await form.locator('[name="category"]').fill('Compacto');
-  await form.locator('[name="dailyRate"]').fill('100');
-  await form.getByRole('button',{name:'Salvar'}).click();
-  await page.getByText(model).waitFor();
-}
-
-test('Electron: locação por diária gera cobranças, recebe a próxima e distribui várias',async()=>{
-  const ctx=await launchLocadora();
-  try{
-    const page=ctx.page;
-    await login(page);
-    await createCustomer(page);
-    await createVehicle(page);
-
-    await page.locator('[data-nav="reservas"]').click();
-    await page.locator('#new-rental').click();
-    const form=page.locator('#rental-form');
-    await form.locator('[name="pickupAt"]').fill('2026-10-01T10:00');
-    await form.locator('[name="returnAt"]').fill('2026-10-06T10:00');
-    await form.locator('[name="billingMode"]').selectOption('daily');
-    assert.equal(await form.locator('[name="dailyRate"]').inputValue(),'100');
-    await form.getByRole('button',{name:'Salvar locação'}).click();
-
-    const dailyButton=page.locator('[data-daily-control]').first();
-    await dailyButton.waitFor();
-    await dailyButton.click();
-    await page.getByRole('heading',{name:'Controle de diárias'}).waitFor();
-    assert.equal(await page.locator('.modal tbody tr').count(),5);
-    await page.getByText('Diária 1',{exact:false}).waitFor();
-    await page.locator('#receive-next-daily').click();
-
-    await page.getByRole('heading',{name:'Receber diária'}).waitFor();
-    assert.equal(await page.locator('.modal-overlay').count(),1,'recebimento deve substituir o modal anterior');
-    const payment=page.locator('#daily-payment-form');
-    assert.equal(await payment.locator('[name="amount"]').inputValue(),'100.00');
-    await payment.getByRole('button',{name:'Confirmar recebimento'}).click();
-    await page.getByText('Diária atualizada.').waitFor();
-
-    await page.locator('[data-daily-control]').first().click();
-    await page.getByRole('heading',{name:'Controle de diárias'}).waitFor();
-    await page.locator('.modal tbody tr').first().getByText('Pago').waitFor();
-    await page.locator('#receive-multiple-daily').click();
-    await page.getByRole('heading',{name:'Receber várias diárias'}).waitFor();
-    const bulk=page.locator('#daily-bulk-payment-form');
-    await bulk.locator('[name="amount"]').fill('250');
-    await bulk.getByRole('button',{name:'Confirmar recebimento'}).click();
-    await page.getByText('Recebimento distribuído nas diárias.').waitFor();
-
-    await page.locator('[data-daily-control]').first().click();
-    await page.getByRole('heading',{name:'Controle de diárias'}).waitFor();
-    const rows=page.locator('.modal tbody tr');
-    await rows.nth(0).getByText('Pago').waitFor();
-    await rows.nth(1).getByText('Pago').waitFor();
-    await rows.nth(2).getByText('Pago').waitFor();
-    await rows.nth(3).getByText('Parcial').waitFor();
-    const received=await page.locator('.modal .cards article').filter({hasText:'Recebido'}).innerText();
-    assert.match(received,/350,00/);
-  } finally {
-    await ctx.close();
-  }
+test('Electron: cobrança diária usa um único fluxo Receber pagamento',async()=>{
+ const ctx=await launchLocadora();try{const p=ctx.page;await login(p);await createCustomer(p);await createVehicle(p);
+  await p.locator('[data-nav="reservas"]').click();await p.locator('#new-rental').click();const f=p.locator('#rental-form');
+  await f.locator('[name="pickupAt"]').fill('01/10/2026 10:00');await f.locator('[name="returnAt"]').fill('06/10/2026 10:00');
+  await f.locator('details.rental-advanced summary').click();await f.locator('[name="billingMode"]').selectOption('daily');await f.getByRole('button',{name:'Salvar locação'}).click();
+  const pay=p.locator('[data-rental-payment]').first();await pay.waitFor();assert.equal(await p.locator('[data-daily-control]').count(),0);
+  await pay.click();await p.getByRole('heading',{name:'Receber pagamento'}).waitFor();const form=p.locator('#daily-payment-form');assert.equal(await form.locator('tbody tr').count(),5);assert.ok(await form.locator('[data-payment-quick]').count()>=2);
+  await form.locator('button.primary').click();await p.getByText('Recebimento registrado.').waitFor();
+  await p.locator('[data-rental-payment]').first().click();const form2=p.locator('#daily-payment-form');await form2.waitFor();await form2.locator('[name="amount"]').fill('250');await form2.locator('button.primary').click();await p.getByText('Recebimento registrado.').waitFor();
+  await p.locator('[data-rental-payment]').first().click();const form3=p.locator('#daily-payment-form');await form3.waitFor();const received=await form3.locator('.cards article').filter({hasText:'Já recebido'}).innerText();assert.match(received,/350,00/);
+ }finally{await ctx.close();}
 });
 
-test('Electron: locação contínua nasce sem devolução e força cobrança diária',async()=>{
-  const ctx=await launchLocadora();
-  try{
-    const page=ctx.page;
-    await login(page);
-    await createCustomer(page,'George Contínuo');
-    await createVehicle(page,'Onix Contínuo','CNT1A23');
-    await page.locator('[data-nav="reservas"]').click();
-    await page.locator('#new-rental').click();
-    const form=page.locator('#rental-form');
-    await form.locator('[name="pickupAt"]').fill('2026-10-01T10:00');
-    await form.locator('[name="periodMode"]').selectOption('continuous');
-    assert.equal(await form.locator('[name="returnAt"]').isDisabled(),true);
-    assert.equal(await form.locator('[name="billingMode"]').inputValue(),'daily');
-    assert.equal(await form.locator('[name="billingMode"]').isDisabled(),true);
-    await form.getByRole('button',{name:'Salvar locação'}).click();
-    await page.getByText('Locação contínua e primeira diária criadas.').waitFor();
-    await page.getByText('Contínua').first().waitFor();
-    await page.locator('[data-daily-control]').first().click();
-    await page.getByRole('heading',{name:'Controle de diárias'}).waitFor();
-    assert.ok((await page.locator('.modal tbody tr').count())>=1,'locação contínua deve possuir ao menos a primeira diária; diárias adicionais podem ser provisionadas pelo fechamento diário');
-  } finally {
-    await ctx.close();
-  }
+test('Electron: locação contínua força cobrança diária sem expor escolha técnica',async()=>{
+ const ctx=await launchLocadora();try{const p=ctx.page;await login(p);await createCustomer(p,'George Contínuo');await createVehicle(p,'Onix Contínuo','CNT1A23');
+  await p.locator('[data-nav="reservas"]').click();await p.locator('#new-rental').click();const f=p.locator('#rental-form');await f.locator('[name="pickupAt"]').fill('01/10/2026 10:00');await f.locator('[name="periodMode"]').selectOption('continuous');assert.equal(await f.locator('[name="returnAt"]').isDisabled(),true);await f.getByRole('button',{name:'Salvar locação'}).click();await p.getByText('Locação contínua criada.').waitFor();await p.getByText('Contínua').first().waitFor();await p.locator('[data-rental-payment]').first().click();await p.locator('#daily-payment-form').waitFor();
+ }finally{await ctx.close();}
 });
