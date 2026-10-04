@@ -15,8 +15,8 @@ export function brDateTimeValue(value){
 }
 export function brDateTimeToIso(value,{required=false}={}){
   const text=String(value??'').trim();if(!text){if(required)throw new Error('Informe data e hora no formato dd/mm/aaaa hh:mm.');return null;}
-  if(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}/.test(text)){const d=new Date(text);if(!Number.isNaN(d.getTime()))return d.toISOString();}
-  const match=text.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})(?:\\s+(\\d{2}):(\\d{2}))$/);
+  if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)){const d=new Date(text);if(!Number.isNaN(d.getTime()))return d.toISOString();}
+  const match=text.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))$/);
   if(!match)throw new Error('Use o formato dd/mm/aaaa hh:mm.');
   const [,dd,mm,yyyy,hh,min]=match,d=new Date(Number(yyyy),Number(mm)-1,Number(dd),Number(hh),Number(min),0,0);
   if(d.getFullYear()!==Number(yyyy)||d.getMonth()!==Number(mm)-1||d.getDate()!==Number(dd)||d.getHours()!==Number(hh)||d.getMinutes()!==Number(min))throw new Error('Data ou hora inválida.');
