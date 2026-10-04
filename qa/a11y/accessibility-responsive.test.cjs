@@ -6,8 +6,8 @@ const {launchCloudPwa}=require('../e2e/fixtures/cloud-pwa.cjs');
 
 async function assertNoSeriousA11y(page,label){
   const axeSource=fs.readFileSync(require.resolve('axe-core/axe.min.js'),'utf8');
-  await page.addScriptTag({content:axeSource});
-  const result=await page.evaluate(async()=>await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa']}}));
+  await page.evaluate(axeSource);
+  const result=await page.evaluate(async()=>await window.axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa']}}));
   const blocking=result.violations.filter(item=>['critical','serious'].includes(item.impact));
   assert.deepEqual(blocking.map(item=>({id:item.id,impact:item.impact,nodes:item.nodes.length})),[],label);
 }
