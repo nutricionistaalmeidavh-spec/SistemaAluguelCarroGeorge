@@ -12,13 +12,14 @@ const DEMO_EMAIL='nutricionistaalmeidavh@gmail.com';
 
 function read(relative){return readFileSync(fileURLToPath(new URL(`../${relative}`,import.meta.url)),'utf8');}
 
-test('login cloud fixa a instalação do George e mostra apenas e-mail e senha',()=>{
+test('login cloud fixa a instalação sem publicar a conta administrativa no bundle',()=>{
   const source=read('src/cloud-app.mjs'),bootstrap=read('src/bootstrap.mjs'),index=read('index.html');
   assert.match(source,/CLOUD_INSTALLATION_ID\s*=\s*['"]LOCADORA-GEORGE['"]/);
-  assert.match(source,/GEORGE_LOGIN_EMAIL\s*=\s*['"]georgedaut\.adm@gmail\.com['"]/);
+  assert.doesNotMatch(source,/GEORGE_LOGIN_EMAIL|georgedaut\.adm@gmail\.com/i);
   assert.doesNotMatch(source,/name=["']installationId["']/);
   assert.match(source,/<label>E-mail<input name=["']username["']/);
   assert.doesNotMatch(source,/>Usuário<input name=["']username["']/);
+  assert.match(source,/Recuperar acesso/);
   assert.match(bootstrap,/\/api\/v1\/auth\/bootstrap/);
   assert.match(index,/src\/bootstrap\.mjs/);
 });
