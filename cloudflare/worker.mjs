@@ -1,4 +1,4 @@
-import { API_PREFIX, publicHealth } from './config.mjs';
+import { API_PREFIX, publicHealth, publicVersion } from './config.mjs';
 import { handleAttachmentRoute,isAttachmentRoute } from './api/attachment-routes.mjs';
 import { handleAuthRoute } from './api/auth-routes.mjs';
 import { handleBillingRoute,isBillingOperationRoute } from './api/billing-routes.mjs';
@@ -32,6 +32,7 @@ async function withGeneration(response,generation){return generation?decorateSyn
 async function dispatch(request,env,ctx){
   const url=new URL(request.url);
   if(url.pathname===`${API_PREFIX}/health`){if(!['GET','HEAD'].includes(request.method))return json({ok:false,error:'method_not_allowed'},405,{allow:'GET, HEAD'});const body=publicHealth();return request.method==='HEAD'?new Response(null,{status:200,headers:JSON_HEADERS}):json(body);}
+  if(url.pathname===`${API_PREFIX}/version`){if(!['GET','HEAD'].includes(request.method))return json({ok:false,error:'method_not_allowed'},405,{allow:'GET, HEAD'});const body=publicVersion(env);return request.method==='HEAD'?new Response(null,{status:200,headers:JSON_HEADERS}):json(body);}
   if(url.pathname.startsWith(`${API_PREFIX}/`)&&!validateRequestOrigin(request,{allowedOrigins:allowedOrigins(env)}))return json({ok:false,error:'origin_forbidden'},403);
   if(url.pathname===`${API_PREFIX}/auth/login`){const identity=await throttleIdentity(request);if(identity){const gate=await checkLoginThrottle(env.DB,identity.keyHash);if(gate.blocked)return json({ok:false,error:'login_throttled',retryAfterSeconds:gate.retryAfterSeconds},429,{'retry-after':String(gate.retryAfterSeconds)});}const response=await handleAuthRoute(request,env,ctx,{auth:null});if(identity){if(response.status===200)await clearLoginThrottle(env.DB,identity.keyHash);else if(response.status===401)await recordLoginFailure(env.DB,identity.keyHash);}return response;}
   if(url.pathname.startsWith(`${API_PREFIX}/auth/`)){const auth=await authFor(request,env);return handleAuthRoute(request,env,ctx,{auth});}
