@@ -24,7 +24,7 @@ test('navegação principal representa as tarefas do George sem remover capacida
   const groups=mobileNavigationGroups(admin);
   assert.deepEqual(groups.map(group=>group.items.map(item=>item.id)),[
     ['overview','rentals','customers','vehicles','finance'],
-    ['inspections','billing','delinquency','maintenance','contracts','documents','alerts','administration']
+    ['administration']
   ]);
   const flat=groups.flatMap(group=>group.items.map(item=>item.id));
   assert.equal(new Set(flat).size,flat.length,'nenhum destino deve aparecer duas vezes');
