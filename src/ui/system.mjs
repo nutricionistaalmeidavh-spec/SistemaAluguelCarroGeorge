@@ -12,21 +12,28 @@ export function renderBackup(view,ctx){
   const{snapshot,replaceSnapshot,save,sessionUser}=ctx;
   const canCreate=can(sessionUser,'backup.create'),admin=sessionUser.role==='admin',desktop=Boolean(window.locadoraDesktop?.getOperationalDiagnostics);
   const cloudPanel=admin&&desktop?`<section class="panel" id="plan03-ops">
-    <h2>Nuvem e recuperação</h2>
-    <p id="plan03-status">Carregando diagnóstico…</p>
-    <p class="hint">Dados estruturados sincronizam com D1 e fotos/documentos com R2. Não é necessário configurar conexão entre computador e celular.</p>
-    <div class="stack"><button id="cloud-sync-now" class="primary">Sincronizar nuvem agora</button><button id="plan03-refresh">Atualizar diagnóstico</button></div>
-    <div id="cloud-conflict-list"></div>
+    <h2>Sincronização e dispositivos</h2>
+    <p class="hint">Os dados deste computador e do celular são sincronizados automaticamente quando há internet.</p>
+    <div class="stack"><button id="cloud-sync-now" class="primary">Sincronizar agora</button></div>
     <hr>
-    <h2>Dispositivos e sessões</h2>
-    <p class="hint">Cada PC ou PWA mantém sua própria sessão da mesma conta. Revogar um dispositivo encerra apenas as sessões e credenciais daquele dispositivo.</p>
+    <h3>Dispositivos conectados</h3>
+    <p class="hint">Você pode encerrar o acesso de outro computador ou celular sem afetar este dispositivo.</p>
     <div id="cloud-device-list"><p>Carregando dispositivos…</p></div>
-    <button id="cloud-revoke-other-sessions">Revogar outras sessões</button>
-    <hr>
-    <h2>Migração para a nuvem</h2>
-    <p id="cloud-migration-status">Verificando estado da migração…</p>
-    <p class="hint">Antes de substituir qualquer base local, o sistema cria um backup verificado do SQLite e dos anexos do PC.</p>
-    <div class="stack"><button id="cloud-migration-seed" class="primary" hidden>Enviar dados deste PC</button><button id="cloud-migration-adopt" hidden>Usar dados da nuvem neste PC</button></div>
+    <button id="cloud-revoke-other-sessions">Encerrar acessos em outros dispositivos</button>
+    <details class="advanced-diagnostics">
+      <summary>Diagnóstico avançado</summary>
+      <div class="advanced-diagnostics-body">
+        <p id="plan03-status">Carregando diagnóstico…</p>
+        <p class="hint">Dados estruturados usam D1; fotos e documentos usam R2. A réplica local do PC usa SQLite.</p>
+        <button id="plan03-refresh">Atualizar diagnóstico</button>
+        <div id="cloud-conflict-list"></div>
+        <hr>
+        <h3>Migração e recuperação da nuvem</h3>
+        <p id="cloud-migration-status">Verificando estado da migração…</p>
+        <p class="hint">Antes de substituir uma base local, o sistema gera e verifica uma cópia de segurança.</p>
+        <div class="stack"><button id="cloud-migration-seed" class="primary" hidden>Enviar dados deste PC</button><button id="cloud-migration-adopt" hidden>Usar dados da nuvem neste PC</button></div>
+      </div>
+    </details>
   </section>`:'';
 
   view.innerHTML=`<div class="heading"><div><small>SEGURANÇA DOS DADOS</small><h1>Backup e configurações</h1></div></div><div class="split"><section class="panel"><h2>Backup verificável</h2><p>O arquivo v3 inclui SHA-256 e é validado antes da restauração.</p><div class="stack">${canCreate?'<button id="backup-create" class="primary">Gerar backup</button>':''}${desktop&&canCreate?'<button id="backup-local-create">Backup físico do PC agora</button>':''}${admin?'<label class="file-button">Restaurar backup<input id="backup-file" type="file" accept="application/json"></label><small>Aceita backups P0/v2 e snapshot legado 0.1.5, migrando automaticamente para v3.</small>':''}</div></section>${admin?`<section class="panel"><h2>Empresa</h2><form id="settings-form" class="form-grid"><label>Nome<input name="companyName" value="${esc(snapshot.settings.companyName)}"></label><label>CPF/CNPJ<input name="document" value="${esc(snapshot.settings.document)}"></label><label>Telefone<input name="phone" value="${esc(snapshot.settings.phone)}"></label><label>Endereço<input name="address" value="${esc(snapshot.settings.address)}"></label><div class="full"><button class="primary">Salvar configurações</button></div></form></section>`:''}${cloudPanel}</div>`;
