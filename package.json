@@ -33,7 +33,7 @@
     "release:check": "npm run verify && npm run cloud:migrations:local && npm run cloud:assets && npm run cloud:test && npm run coverage && npm run e2e && npm run qa:release && npm run plan03:gate",
     "ci:install": "npm install --no-audit --no-fund",
     "build:meta": "node scripts/write-build-info.mjs",
-    "e2e:a11y": "node --test --test-concurrency=1 qa/e2e/accessibility-responsive.test.cjs"
+    "e2e:a11y": "node --test --test-concurrency=1 qa/a11y/accessibility-responsive.test.cjs"
   },
   "main": "electron/main.cjs",
   "devDependencies": {
