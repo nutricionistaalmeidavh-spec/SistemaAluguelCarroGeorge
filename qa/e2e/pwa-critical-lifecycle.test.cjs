@@ -83,6 +83,7 @@ test('PWA fecha o ciclo operacional completo da locação sem depender do deskto
   assert.equal(finalRental.payment_status,'pago');
   assert.equal(db.scalar('SELECT COUNT(*) FROM inspections WHERE installation_id=? AND rental_id=?',installationId,rentalId),2);
   assert.equal(db.scalar('SELECT COUNT(*) FROM attachments WHERE installation_id=? AND entity_type=?',installationId,'inspection'),2);
-  await page.getByText('Finalizada',{exact:true}).waitFor();
+  const finalCard=page.locator('.cloud-entity-card').filter({hasText:'Cliente Ciclo PWA'}).first();
+  await finalCard.getByText(/Finalizada/).waitFor();
   await shot(page,'04-finalizada.png');
 });
