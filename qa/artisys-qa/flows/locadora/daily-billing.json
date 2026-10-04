@@ -116,7 +116,7 @@
     },
     {
       "action": "expectVisible",
-      "selector": "[data-payment-quick]"
+      "selector": ".payment-quick"
     },
     {
       "action": "click",
