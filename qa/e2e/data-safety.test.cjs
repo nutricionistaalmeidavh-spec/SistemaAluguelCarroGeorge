@@ -78,7 +78,7 @@ test('permissions: inspector and attendant respect read, write and restore restr
   await expect(p.locator('#new-vehicle')).toHaveCount(0);
   for(const id of ['financeiro','backup','auditoria','clientes','cobrancas'])await expect(p.locator(`[data-nav="${id}"]`)).toHaveCount(0);
   await p.locator('[data-nav="reservas"]').click();await expect(p.locator('#new-rental')).toHaveCount(0);
-  await openModule(p,'vistorias');await expect(p.locator('#view h1')).toHaveText('Vistorias');
+  await expect(p.locator('[data-nav="vistorias"]')).toHaveCount(0);
   await p.locator('#logout').click();await login(p,'atendente');
   await openModule(p,'backup');
   await expect(p.locator('#backup-create')).toBeVisible();
