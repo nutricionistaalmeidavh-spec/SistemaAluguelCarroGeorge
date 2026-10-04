@@ -7,10 +7,10 @@
     "test": "node --test tests/*.test.mjs",
     "test:migration": "node --test tests/migration-*.test.mjs tests/schema-*.test.mjs tests/sqlite-relational.test.mjs tests/sqlite-upgrade.test.mjs tests/attachments-local.test.mjs",
     "serve": "python3 -m http.server 4173",
-    "pwa:prepare": "node scripts/prepare-pwa.mjs",
+    "pwa:prepare": "npm run build:meta && node scripts/prepare-pwa.mjs",
     "postinstall": "npm run pwa:prepare",
     "build": "npm run pwa:prepare && npm run cloud:assets",
-    "cloud:assets": "node scripts/prepare-cloud-assets.mjs",
+    "cloud:assets": "npm run build:meta && node scripts/prepare-cloud-assets.mjs",
     "cloud:test": "node --test tests/cloud-*.test.mjs",
     "cloud:migrations:local": "node scripts/cloud-migrations-local.mjs",
     "cloud:dev": "npm run cloud:assets && npx --yes wrangler@4.140.0 dev --config wrangler.jsonc",
@@ -31,13 +31,16 @@
     "windows:installer:verify": "node scripts/verify-windows-installer.cjs",
     "verify": "npm run check && npm run check:plan03 && npm test && npm run test:migration && npm run dr:test && npm run coverage:vertical",
     "release:check": "npm run verify && npm run cloud:migrations:local && npm run cloud:assets && npm run cloud:test && npm run coverage && npm run e2e && npm run qa:release && npm run plan03:gate",
-    "ci:install": "npm install --no-audit --no-fund"
+    "ci:install": "npm install --no-audit --no-fund",
+    "build:meta": "node scripts/write-build-info.mjs",
+    "e2e:a11y": "node --test --test-concurrency=1 qa/a11y/accessibility-responsive.test.cjs"
   },
   "main": "electron/main.cjs",
   "devDependencies": {
     "electron": "39.8.10",
     "electron-builder": "26.0.12",
-    "sql.js": "1.14.2"
+    "sql.js": "1.14.2",
+    "axe-core": "4.10.3"
   },
   "build": {
     "appId": "com.artisys.locadora.george",
@@ -60,8 +63,19 @@
       "assets/**/*",
       "package.json"
     ],
-    "directories": { "output": "release" },
-    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

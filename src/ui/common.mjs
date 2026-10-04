@@ -1,3 +1,4 @@
+export { rentalStatusLabel } from './semantics.mjs';
 export const money = (v) => Number(v || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 export const date = (v) => v ? new Date(v).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : '-';
 export const esc = (v='') => String(v).replace(/[&<>\"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
@@ -5,9 +6,6 @@ export const esc = (v='') => String(v).replace(/[&<>\"']/g, (c) => ({'&':'&amp;'
 export function friendlyId(value,prefix=''){
   const raw=String(value??'').trim(),tail=(raw.split('-').filter(Boolean).pop()||raw).slice(-6).toUpperCase();
   return (prefix?prefix+' ':'')+'#'+(tail||'—');
-}
-export function rentalStatusLabel(status){
-  return ({reserva:'Agendada',retirada:'Retirada em andamento',em_uso:'Em uso',devolucao:'Finalizada'})[status]||String(status||'').replaceAll('_',' ');
 }
 export function brDateTimeValue(value){
   if(!value)return'';const d=value instanceof Date?value:new Date(value);if(Number.isNaN(d.getTime()))return'';

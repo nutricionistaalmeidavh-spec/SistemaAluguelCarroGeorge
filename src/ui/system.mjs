@@ -3,6 +3,7 @@ import {migrateLegacySnapshot} from '../domain/rental.mjs';
 import {ensureP1Snapshot} from '../domain/p1.mjs';
 import {can} from '../domain/auth.mjs';
 import {date,download,esc,toast} from './common.mjs';
+import {BUILD_INFO,shortBuildCommit} from '../build-info.mjs';
 
 export function renderAuditoria(view,{snapshot}){
   view.innerHTML=`<div class="heading"><div><small>HISTÓRICO</small><h1>Auditoria</h1></div></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Entidade</th><th>ID</th></tr></thead><tbody>${snapshot.audit.map(a=>`<tr><td>${date(a.at)}</td><td>${esc(snapshot.users.find(u=>u.id===a.actorId)?.name||a.actorId)}</td><td>${esc(a.action)}</td><td>${esc(a.entityType)}</td><td>${esc(a.entityId)}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">Nenhuma ação auditada.</td></tr>'}</tbody></table></div></section>`;
@@ -23,6 +24,7 @@ export function renderBackup(view,ctx){
     <details class="advanced-diagnostics">
       <summary>Diagnóstico avançado</summary>
       <div class="advanced-diagnostics-body">
+        <p class="hint" data-build-version>Versão ${esc(BUILD_INFO.appVersion)} · build ${esc(shortBuildCommit())}${BUILD_INFO.builtAt?` · ${esc(date(BUILD_INFO.builtAt))}`:''}</p>
         <p id="plan03-status">Carregando diagnóstico…</p>
         <p class="hint">Dados estruturados usam D1; fotos e documentos usam R2. A réplica local do PC usa SQLite.</p>
         <button id="plan03-refresh">Atualizar diagnóstico</button>

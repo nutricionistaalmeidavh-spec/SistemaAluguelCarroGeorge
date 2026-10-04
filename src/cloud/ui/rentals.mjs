@@ -1,18 +1,18 @@
 import { can } from '../../domain/auth.mjs';
 import { brDateTimeToIso,brDateTimeValue,emptyStateHtml,esc,money,pageControls,shortDate,statusLabel } from './common.mjs';
 import { collectRentalPayment } from './payment-flow.mjs';
+import { rentalStatusLabel } from '../../ui/semantics.mjs';
 
 function options(items,label){return (items??[]).map(item=>`<option value="${esc(item.id)}">${esc(label(item))}</option>`).join('');}
-function rentalStatusLabel(status){return({reserva:'Agendada',retirada:'Retirada em andamento',em_uso:'Em uso',devolucao:'Concluída'})[status]??String(status||'').replaceAll('_',' ');}
 function inspectionFor(snapshot,rentalId,kind){return (snapshot.inspections??[]).find(item=>String(item.rentalId)===String(rentalId)&&item.kind===kind);}
 function openContinuousCloseDialog(defaultValue=brDateTimeValue(new Date().toISOString())){
   return new Promise(resolve=>{
     const host=document.createElement('div');
-    host.innerHTML=`<div class="modal-overlay" data-close-rental-overlay><form class="modal" data-close-rental-form><div class="modal-head"><div><small>ENCERRAR LOCAÇÃO CONTÍNUA</small><h2>Informar devolução</h2></div><button type="button" aria-label="Fechar" data-cancel>×</button></div><label>Data e hora de devolução<input name="returnAt" inputmode="numeric" value="${esc(defaultValue)}" placeholder="dd/mm/aaaa hh:mm" required></label><div class="modal-actions"><button type="button" data-cancel>Cancelar</button><button class="primary">Continuar</button></div></form></div>`;
+    const returnFocus=document.activeElement;host.innerHTML=`<div class="modal-overlay" data-close-rental-overlay><form class="modal" role="dialog" aria-modal="true" aria-label="Informar devolução" data-close-rental-form><div class="modal-head"><div><small>ENCERRAR LOCAÇÃO CONTÍNUA</small><h2>Informar devolução</h2></div><button type="button" aria-label="Fechar" data-cancel>×</button></div><label>Data e hora de devolução<input name="returnAt" inputmode="numeric" value="${esc(defaultValue)}" placeholder="dd/mm/aaaa hh:mm" required></label><div class="modal-actions"><button type="button" data-cancel>Cancelar</button><button class="primary">Continuar</button></div></form></div>`;
     const overlay=host.firstElementChild,form=overlay.querySelector('[data-close-rental-form]');document.body.append(overlay);
-    const close=value=>{overlay.remove();resolve(value);};
+    const close=value=>{overlay.remove();returnFocus?.focus?.();resolve(value);};
     overlay.querySelectorAll('[data-cancel]').forEach(button=>button.onclick=()=>close(null));
-    overlay.onclick=event=>{if(event.target===overlay)close(null);};
+    overlay.onclick=event=>{if(event.target===overlay)close(null);};overlay.onkeydown=event=>{if(event.key==='Escape'){event.preventDefault();close(null);}};
     form.onsubmit=event=>{event.preventDefault();try{close(brDateTimeToIso(form.elements.returnAt.value,{required:true}));}catch(error){form.elements.returnAt.setCustomValidity(error.message);form.elements.returnAt.reportValidity();form.elements.returnAt.setCustomValidity('');}};
     form.elements.returnAt.focus();
   });

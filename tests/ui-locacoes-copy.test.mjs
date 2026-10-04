@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { workAreaLabel } from '../src/ui/semantics.mjs';
 
 const appSource = readFileSync(new URL('../src/app.mjs', import.meta.url), 'utf8');
 const desktopRentalsSource = readFileSync(new URL('../src/ui/reservas.mjs', import.meta.url), 'utf8');
@@ -16,7 +17,8 @@ const legacyVisibleTerms = [
 ];
 
 test('Desktop usa Locações como nomenclatura visível do módulo', () => {
-  assert.match(appSource, /\['reservas','Locações'\]/);
+  assert.equal(workAreaLabel('reservas'),'Locações');
+  assert.match(appSource,/WORK_AREAS/);
   assert.match(desktopRentalsSource, /<h1>Locações<\/h1>/);
   assert.match(desktopRentalsSource, />Nova locação<\/button>/);
   assert.match(desktopRentalsSource, /modal\('Nova locação'/);

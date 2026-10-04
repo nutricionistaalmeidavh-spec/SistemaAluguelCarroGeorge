@@ -28,8 +28,8 @@ export function createApiClient({baseUrl='',fetchImpl=globalThis.fetch,timeoutMs
   return Object.freeze({
     request,
     setRestoreGeneration:value=>{restoreGeneration=value==null?null:Number(value);},getRestoreGeneration:()=>restoreGeneration,
-    async health(){return request('/api/v1/health');},
-    async login(input){return request('/api/v1/auth/login',{method:'POST',body:input});},async firstAccess(input){return request('/api/v1/auth/first-access',{method:'POST',body:input});},async logout(){return request('/api/v1/auth/logout',{method:'POST'});},async session(){return request('/api/v1/auth/me');},
+    async health(){return request('/api/v1/health');},async version(){return request('/api/v1/version');},
+    async login(input){return request('/api/v1/auth/login',{method:'POST',body:input});},async firstAccess(input){return request('/api/v1/auth/first-access',{method:'POST',body:input});},async issueRecoveryCode(){return request('/api/v1/auth/recovery-code',{method:'POST',body:{}});},async recoverAccess(input){return request('/api/v1/auth/recover',{method:'POST',body:input});},async logout(){return request('/api/v1/auth/logout',{method:'POST'});},async session(){return request('/api/v1/auth/me');},
     async listDevices(){const result=await request('/api/v1/devices');return result?.devices??[];},async revokeDevice(id){return request(`/api/v1/devices/${encodeURIComponent(id)}/revoke`,{method:'POST'});},async revokeOtherSessions(){return request('/api/v1/sessions/revoke-others',{method:'POST'});},async revokeAllSessions(){return request('/api/v1/sessions/revoke-all',{method:'POST'});},
     async getAdminAudit(filters={}){const params=new URLSearchParams();for(const key of ['action','entityType','actorId','from','to','limit','offset'])if(filters[key]!==undefined&&filters[key]!==null&&String(filters[key])!=='')params.set(key,String(filters[key]));const suffix=params.toString();return request(`/api/v1/admin/audit${suffix?`?${suffix}`:''}`);},
     async getAdminSettings(){return request('/api/v1/admin/settings');},

@@ -9,7 +9,7 @@
 .cloud-sync-summary strong[data-state="attention"]::before{content:'!';background:#fff1d6;color:#8a5600}
 .cloud-sync-summary strong[data-state="offline"]::before{content:'•';background:#eef0f2;color:#68707c}
 .cloud-sync-summary strong[data-state="pending"]::before{content:'↻';background:#eef4ff;color:#2f66c8}
-.cloud-sync-summary small{color:#737b87;white-space:normal}
+.cloud-sync-summary small{color:var(--color-text-muted);white-space:normal}
 .sync-issues{border-color:#f0d5a5;background:#fffdf8}
 .sync-issue-list{display:grid;gap:12px}
 .sync-issue-card{border:1px solid #ead9b9;border-radius:12px;background:#fff;padding:15px;display:grid;gap:12px}
@@ -20,7 +20,7 @@
 .sync-issue-summary{font-weight:800;color:#20242d!important}
 .sync-issue-actions{display:flex;gap:8px;flex-wrap:wrap}
 .sync-technical{border-top:1px solid #ece5d8;padding-top:9px}
-.sync-technical summary{cursor:pointer;color:#737b87;font-size:12px}
+.sync-technical summary{cursor:pointer;color:var(--color-text-muted);font-size:12px}
 .sync-technical pre{overflow:auto;max-height:220px;background:#f7f8f9;border-radius:8px;padding:10px;font-size:11px;white-space:pre-wrap;word-break:break-word}
 
 .cloud-create-panel{padding:0;overflow:hidden}
@@ -47,7 +47,7 @@
 
 .admin-tabs{display:flex;gap:8px;overflow:auto;margin:0 0 14px;padding:3px}
 .admin-tabs button{border:1px solid #dce0e5;background:#fff;color:#59616c;border-radius:9px;padding:9px 13px;font-weight:800;white-space:nowrap}
-.admin-tabs button.active{border-color:#f37a20;background:#fff7f1;color:#b94f06}
+.admin-tabs button.active{border-color:var(--color-primary);background:#fff7f1;color:var(--color-primary)}
 .admin-panes>[hidden]{display:none!important}
 .admin-security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .admin-restore-card{margin-top:16px;background:#fffaf5}
@@ -78,9 +78,9 @@
   [data-test="admin-devices"] tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;border:1px solid #e3e6ea;border-radius:10px;padding:12px;margin-bottom:10px}
   [data-test="admin-devices"] tbody td{border:0;padding:3px 0;min-width:0;overflow-wrap:anywhere}
   [data-test="admin-devices"] tbody td:first-child{grid-column:1/-1}
-  [data-test="admin-devices"] tbody td:nth-child(2)::before{content:'Status: ';color:#7a818c;font-size:11px}
-  [data-test="admin-devices"] tbody td:nth-child(3)::before{content:'Último acesso: ';color:#7a818c;font-size:11px}
-  [data-test="admin-devices"] tbody td:nth-child(4)::before{content:'Sessões: ';color:#7a818c;font-size:11px}
+  [data-test="admin-devices"] tbody td:nth-child(2)::before{content:'Status: ';color:var(--color-text-muted);font-size:11px}
+  [data-test="admin-devices"] tbody td:nth-child(3)::before{content:'Último acesso: ';color:var(--color-text-muted);font-size:11px}
+  [data-test="admin-devices"] tbody td:nth-child(4)::before{content:'Sessões: ';color:var(--color-text-muted);font-size:11px}
   [data-test="admin-devices"] tbody td:last-child{grid-column:1/-1}
   [data-test="admin-devices"] tbody td:last-child button{width:100%;min-height:42px}
 }
@@ -97,7 +97,7 @@
 .empty-state p{margin:0;max-width:520px;color:#6b7280;line-height:1.45}
 .empty-state .primary{margin-top:5px}
 input[placeholder="dd/mm/aaaa"],input[placeholder="dd/mm/aaaa hh:mm"]{font-variant-numeric:tabular-nums}
-input[placeholder="dd/mm/aaaa"]::placeholder,input[placeholder="dd/mm/aaaa hh:mm"]::placeholder{color:#9aa1aa;opacity:1}
+input[placeholder="dd/mm/aaaa"]::placeholder,input[placeholder="dd/mm/aaaa hh:mm"]::placeholder{color:var(--color-text-muted);opacity:1}
 @media(max-width:700px){
   .empty-state{min-height:120px;padding:20px 16px}
   .empty-state .primary{width:100%;min-height:42px}

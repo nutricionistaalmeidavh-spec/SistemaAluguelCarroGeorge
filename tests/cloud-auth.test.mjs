@@ -4,6 +4,8 @@ import { hashPassword, verifyPassword } from '../cloudflare/auth/password.mjs';
 import { buildSessionCookie, clearSessionCookie, readSessionToken } from '../cloudflare/auth/session.mjs';
 import { handleAuthRoute, sanitizeAuthUser } from '../cloudflare/api/auth-routes.mjs';
 import { canCloud } from '../cloudflare/auth/permissions.mjs';
+import { FakeD1 } from './helpers/fake-d1.mjs';
+import { GEORGE_ADMIN_EMAIL,GEORGE_INSTALLATION_ID,ensureGeorgeAdmin } from '../cloudflare/auth/george-provision.mjs';
 
 const demoPass=['fixture','credential','value'].join('-');
 const wrongPass=['different','fixture','value'].join('-');
@@ -104,4 +106,30 @@ test('RBAC cloud espelha papéis operacionais e falha fechado',()=>{
   assert.equal(canCloud({role:'vistoriador',active:true},'customer.read'),false);
   assert.equal(canCloud({role:'desconhecido',active:true},'rental.read'),false);
   assert.equal(canCloud({role:'admin',active:false},'rental.read'),false);
+});
+
+
+test('código de recuperação self-hosted redefine senha uma vez e revoga sessões',async()=>{
+  const db=new FakeD1();
+  try{
+    await ensureGeorgeAdmin(db,{now:'2026-10-04T12:00:00.000Z'});
+    const user=db.sqlite.prepare('SELECT id,role,active FROM users WHERE installation_id=? AND username=?').get(GEORGE_INSTALLATION_ID,GEORGE_ADMIN_EMAIL);
+    const auth={installationId:GEORGE_INSTALLATION_ID,userId:user.id,role:user.role,active:Boolean(user.active)};
+    const issue=await handleAuthRoute(new Request('https://example.test/api/v1/auth/recovery-code',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}),{DB:db},{},{auth});
+    assert.equal(issue.status,201);
+    const issued=await issue.json();
+    assert.match(issued.recoveryCode,/^[0-9A-F]{6}(?:-[0-9A-F]{6}){3}$/);
+
+    const recoverInput={installationId:GEORGE_INSTALLATION_ID,username:GEORGE_ADMIN_EMAIL,recoveryCode:issued.recoveryCode,newPassword:newPass};
+    const recovered=await handleAuthRoute(new Request('https://example.test/api/v1/auth/recover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(recoverInput)}),{DB:db},{},{auth:null});
+    assert.equal(recovered.status,200);
+    assert.deepEqual(await recovered.json(),{ok:true});
+    const after=db.sqlite.prepare('SELECT password_hash,must_change_password FROM users WHERE installation_id=? AND username=?').get(GEORGE_INSTALLATION_ID,GEORGE_ADMIN_EMAIL);
+    assert.deepEqual(await verifyPassword(newPass,after.password_hash),{ok:true,needsUpgrade:false});
+    assert.equal(Number(after.must_change_password),0);
+
+    const reused=await handleAuthRoute(new Request('https://example.test/api/v1/auth/recover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(recoverInput)}),{DB:db},{},{auth:null});
+    assert.equal(reused.status,401);
+    assert.equal((await reused.json()).error,'recovery_code_invalid');
+  }finally{db.close();}
 });
