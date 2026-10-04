@@ -47,7 +47,7 @@
 
 .admin-tabs{display:flex;gap:8px;overflow:auto;margin:0 0 14px;padding:3px}
 .admin-tabs button{border:1px solid #dce0e5;background:#fff;color:#59616c;border-radius:9px;padding:9px 13px;font-weight:800;white-space:nowrap}
-.admin-tabs button.active{border-color:#f37a20;background:#fff7f1;color:#b94f06}
+.admin-tabs button.active{border-color:var(--color-primary);background:#fff7f1;color:var(--color-primary)}
 .admin-panes>[hidden]{display:none!important}
 .admin-security-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .admin-restore-card{margin-top:16px;background:#fffaf5}
