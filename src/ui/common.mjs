@@ -24,6 +24,7 @@ export function brDateTimeToIso(value,{required=false}={}){
 }
 
 export function toast(message) {
+  document.querySelectorAll('.toast').forEach(node=>node.remove());
   const el = document.createElement('div');
   el.className='toast'; el.textContent=message; el.setAttribute('role','status');el.setAttribute('aria-live','polite');document.body.appendChild(el);
   setTimeout(()=>el.remove(),2600);
