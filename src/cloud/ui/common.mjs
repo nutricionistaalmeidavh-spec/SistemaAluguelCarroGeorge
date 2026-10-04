@@ -1,12 +1,13 @@
 import { can } from '../../domain/auth.mjs';
+import { WORK_AREAS,workAreaLabel } from '../../ui/semantics.mjs';
 
 export const PWA_NAV=Object.freeze([
-  Object.freeze({id:'overview',label:'Hoje',permission:null}),
-  Object.freeze({id:'customers',label:'Clientes',permission:'customer.read'}),
-  Object.freeze({id:'vehicles',label:'Frota',permission:'vehicle.read'}),
-  Object.freeze({id:'rentals',label:'Locações',permission:'rental.read'}),
+  Object.freeze({id:'overview',label:workAreaLabel('overview'),permission:null}),
+  Object.freeze({id:'customers',label:workAreaLabel('customers'),permission:'customer.read'}),
+  Object.freeze({id:'vehicles',label:workAreaLabel('vehicles'),permission:'vehicle.read'}),
+  Object.freeze({id:'rentals',label:workAreaLabel('rentals'),permission:'rental.read'}),
   Object.freeze({id:'inspections',label:'Vistorias',permission:'inspection.read'}),
-  Object.freeze({id:'finance',label:'Financeiro',permission:'finance.read'}),
+  Object.freeze({id:'finance',label:workAreaLabel('finance'),permission:'finance.read'}),
   Object.freeze({id:'billing',label:'Cobranças',permission:'billing.read'}),
   Object.freeze({id:'delinquency',label:'Inadimplência',permission:'billing.read'}),
   Object.freeze({id:'contracts',label:'Contratos',permission:'contracts.read'}),
@@ -16,7 +17,7 @@ export const PWA_NAV=Object.freeze([
   Object.freeze({id:'administration',label:'Configurações',permission:'admin.access'})
 ]);
 
-export const PRIMARY_NAV_IDS=Object.freeze(['overview','rentals','customers','vehicles','finance']);
+export const PRIMARY_NAV_IDS=Object.freeze(WORK_AREAS.map(item=>item.cloudId));
 export const SECONDARY_NAV_IDS=Object.freeze(['administration']);
 const NAV_PARENT=Object.freeze({
   inspections:'rentals',
@@ -107,5 +108,5 @@ export function navHtml(user,active){
   const primary=primaryNavigationFor(user).map(({id,label})=>`<button type="button" data-cloud-nav="${id}" class="nav ${parent===id?'active':''}">${label}</button>`).join('');
   const secondary=secondaryNavigationFor(user),advancedActive=secondary.some(item=>item.id===active);
   const more=secondary.length?`<details class="desktop-nav-more" ${advancedActive?'open':''}><summary>Mais</summary><div class="desktop-nav-more-list">${secondary.map(({id,label})=>`<button type="button" data-cloud-nav="${id}" class="nav ${active===id?'active':''}">${label}</button>`).join('')}</div></details>`:'';
-  return `<div class="desktop-nav-list">${primary}${more}</div><div class="mobile-nav-shell"><input class="mobile-menu-toggle" id="cloud-mobile-menu" type="checkbox"><label class="mobile-appbar" for="cloud-mobile-menu" aria-label="Abrir menu"><span class="mobile-menu-icon" aria-hidden="true"><i></i><i></i><i></i></span><strong>${esc(mobilePageLabel(user,active))}</strong><span class="mobile-menu-caption">Menu</span></label><div class="mobile-module-overlay" data-test="mobile-module-central"><label class="mobile-module-backdrop" for="cloud-mobile-menu" aria-label="Fechar menu"></label><section class="mobile-module-panel" role="dialog" aria-modal="true" aria-label="Menu da locadora"><header><div><small>Locadora George</small><h2>Menu</h2></div><label class="mobile-module-close" for="cloud-mobile-menu" aria-label="Fechar">×</label></header>${mobileNavHtml(user,active)}</section></div></div>`;
+  return `<div class="desktop-nav-list">${primary}${more}</div><div class="mobile-nav-shell"><input class="mobile-menu-toggle" id="cloud-mobile-menu" type="checkbox"><label class="mobile-appbar" for="cloud-mobile-menu" tabindex="0" role="button" aria-label="Abrir menu" aria-controls="cloud-mobile-modules" aria-expanded="false"><span class="mobile-menu-icon" aria-hidden="true"><i></i><i></i><i></i></span><strong>${esc(mobilePageLabel(user,active))}</strong><span class="mobile-menu-caption">Menu</span></label><div class="mobile-module-overlay" id="cloud-mobile-modules" data-test="mobile-module-central"><label class="mobile-module-backdrop" for="cloud-mobile-menu" aria-label="Fechar menu"></label><section class="mobile-module-panel" role="dialog" aria-modal="true" aria-label="Menu da locadora"><header><div><small>Locadora George</small><h2>Menu</h2></div><label class="mobile-module-close" for="cloud-mobile-menu" aria-label="Fechar">×</label></header>${mobileNavHtml(user,active)}</section></div></div>`;
 }
