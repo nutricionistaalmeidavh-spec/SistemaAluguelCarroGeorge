@@ -32,6 +32,7 @@ async function createCustomerVehicleAndRental(fx){
   const vehicleId=db.sqlite.prepare('SELECT id FROM vehicles WHERE installation_id=? AND plate=?').get(installationId,'PWA1A23').id;
 
   await fx.openModule('rentals');
+  await page.locator('[data-rental-editor] summary').click();
   const rental=page.locator('#cloud-rental-form');
   await rental.locator('select[name="customerId"]').selectOption(customerId);
   await rental.locator('select[name="vehicleId"]').selectOption(vehicleId);
