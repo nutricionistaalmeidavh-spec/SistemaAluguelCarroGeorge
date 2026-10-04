@@ -9,7 +9,7 @@ test('menu mobile prioriza trabalho principal e deixa capacidades avançadas em 
   const groups=mobileNavigationGroups(admin);
   assert.deepEqual(groups.map(group=>group.items.map(item=>item.id)),[
     ['overview','rentals','customers','vehicles','finance'],
-    ['inspections','billing','delinquency','maintenance','contracts','documents','alerts','administration']
+    ['administration']
   ]);
   const ids=groups.flatMap(group=>group.items.map(item=>item.id));
   assert.equal(new Set(ids).size,ids.length,'nenhum módulo pode aparecer em dois grupos');
@@ -17,15 +17,13 @@ test('menu mobile prioriza trabalho principal e deixa capacidades avançadas em 
   assert.equal(mobileLabelFor('administration','Configurações'),'Configurações');
 });
 
-test('menu mobile mantém todas as capacidades sem atalho duplicado de pagamento',()=>{
+test('menu mobile mostra somente tarefas principais e Configurações',()=>{
   const html=mobileNavHtml(admin,'billing');
-  for(const id of ['overview','rentals','customers','vehicles','finance','inspections','billing','delinquency','maintenance','contracts','documents','alerts','administration']){
-    assert.match(html,new RegExp(`data-cloud-nav="${id}"`));
-  }
+  for(const id of ['overview','rentals','customers','vehicles','finance','administration'])assert.match(html,new RegExp(`data-cloud-nav="${id}"`));
+  for(const id of ['inspections','billing','delinquency','maintenance','contracts','documents','alerts'])assert.doesNotMatch(html,new RegExp(`data-cloud-nav="${id}"`));
   assert.doesNotMatch(html,/data-cloud-shortcut="payment"/);
   assert.doesNotMatch(html,/>Dar baixa<\/span>/);
   assert.match(html,/Configurações/);
-  assert.match(html,/Vistoria/);
   assert.match(html,/aria-current="page"/);
 });
 
