@@ -30,7 +30,8 @@ test('jornada intuitiva: locação → retirada → pagamento → devolução se
     await p.locator('[data-nav="frota"]').click();await p.locator('#new-vehicle').click();
     const vehicle=p.locator('#vehicle-form');await vehicle.locator('[name="model"]').fill('Onix Jornada');await vehicle.locator('[name="plate"]').fill('JOR1A23');await vehicle.locator('[name="dailyRate"]').fill('120');await vehicle.locator('button.primary').click();await p.getByText('Onix Jornada').waitFor();
 
-    await p.locator('[data-nav="reservas"]').click();await p.locator('#new-rental').click();
+    await p.locator('[data-nav="reservas"]').click();
+    const newRental=p.locator('#new-rental');await newRental.click();await p.getByRole('heading',{name:'Nova locação'}).waitFor();await p.keyboard.press('Escape');assert.equal(await p.locator('#rental-form').count(),0,'Escape deve fechar o modal');assert.equal(await newRental.evaluate(node=>document.activeElement===node),true,'foco deve retornar ao gatilho');await newRental.click();
     const rental=p.locator('#rental-form');await rental.locator('[name="pickupAt"]').fill('10/10/2030 10:00');await rental.locator('[name="returnAt"]').fill('12/10/2030 10:00');await rental.getByRole('button',{name:'Salvar locação'}).click();
     const row=p.locator('tbody tr').filter({hasText:'Cliente Jornada'}).first();await row.waitFor();
     assert.doesNotMatch(await row.innerText(),/LOC-[0-9a-f-]{20,}/i,'UUID não deve ser exibido ao operador');
