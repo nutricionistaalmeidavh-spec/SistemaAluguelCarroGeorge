@@ -8,6 +8,7 @@ import {
   navigationParentFor,
   navHtml
 } from '../src/cloud/ui/common.mjs';
+import { WORK_AREAS } from '../src/ui/semantics.mjs';
 
 const admin={id:'USR',role:'admin',active:true};
 
@@ -131,9 +132,10 @@ test('desktop usa retirada e devolução como tarefas, sem botão genérico Avan
 
 test('desktop também reduz navegação principal e agrupa o restante em Mais',async()=>{
   const app=await source('src/app.mjs');
+  assert.deepEqual(WORK_AREAS.map(item=>item.label),['Hoje','Locações','Clientes','Frota','Financeiro']);
   assert.match(app,/const primaryNav=/);
-  assert.match(app,/Hoje/);
+  assert.match(app,/WORK_AREAS/);
   assert.match(app,/<summary>Mais<\/summary>/);
-  assert.match(app,/\['reservas','Locações'\]/);
-  assert.match(app,/\['financeiro','Financeiro'\]/);
+  assert.match(app,/areaLabel\('reservas'\)/);
+  assert.match(app,/areaLabel\('financeiro'\)/);
 });
